@@ -1,0 +1,9 @@
+[build]
+target = "arm-unknown-linux-gnueabihf"
+#rustflags = ["-C", "linker=arm-none-linux-gnueabihf-gcc"]
+
+[target.arm-unknown-linux-gnueabihf]
+#linker = "arm-linux-gnueabihf-gcc"
+
+[target.arm-unknown-linux-musleabihf]
+#linker = "arm-linux-gnueabihf-gcc"
