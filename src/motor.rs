@@ -1,4 +1,8 @@
 use std::time::{Duration};
+use std::thread;
+use std::sync::atomic::{AtomicU32, AtomicI32, AtomicBool, Ordering};
+use std::sync::{Arc};
+
 use rppal::gpio::{Gpio, OutputPin};
 
 #[derive(Clone, Copy, Debug)]
@@ -86,6 +90,96 @@ impl Drop for StepMotor {
     fn drop(&mut self){
         for i in 0..4 {
             self.pins[i].set_low();
+        }
+    }
+}
+
+pub struct StepMotorController {
+    pub cur_pos: Arc<AtomicI32>,
+    pub tgt_pos: Arc<AtomicI32>,
+    pub step_delay_ms: Arc<AtomicU32>,
+
+    thread_handle: Option<thread::JoinHandle<()>>,
+    kill_switch: Arc<AtomicBool>
+    // condvar + atomicBool(was_changed) for perfomance ?
+}
+
+fn control_loop(mut motor: StepMotor, cur_pos: Arc<AtomicI32>, tgt_pos: Arc<AtomicI32>, step_delay_ms: Arc<AtomicU32>, kill_switch: Arc<AtomicBool>) {
+    loop {
+        if kill_switch.load(Ordering::Relaxed) { break; }
+
+        let diff = tgt_pos.load(Ordering::Relaxed) - cur_pos.load(Ordering::Relaxed);
+        if diff > 0 {
+            motor.do_full_step(StepDirection::Forward);
+            cur_pos.fetch_add(1, Ordering::Relaxed);
+            thread::sleep(Duration::from_millis(step_delay_ms.load(Ordering::Relaxed) as u64));
+        } else if diff < 0 {
+            motor.do_full_step(StepDirection::Backward);
+            cur_pos.fetch_add(-1, Ordering::Relaxed);
+            thread::sleep(Duration::from_millis(step_delay_ms.load(Ordering::Relaxed) as u64));
+        } else {
+            // Condvar.wait()
+        }
+    }
+}
+
+impl StepMotorController {
+    pub fn new(motor: StepMotor, step_delay_ms: u32) -> Self {
+        let cur_pos = Arc::new(AtomicI32::new(0));
+        let cur_pos2 = cur_pos.clone();
+
+        let tgt_pos = Arc::new(AtomicI32::new(0));
+        let tgt_pos2 = tgt_pos.clone();
+
+        let step_delay_ms: Arc<AtomicU32> = Arc::new(AtomicU32::new(step_delay_ms));
+        let step_delay_ms2 = step_delay_ms.clone();
+        
+        let kill_switch = Arc::new(AtomicBool::new(false));
+        let kill_switch2 = kill_switch.clone();
+
+        let thread_handle = thread::spawn(move || {
+            control_loop(motor, cur_pos2, tgt_pos2, step_delay_ms2, kill_switch2)
+        });
+        let thread_handle = Some(thread_handle);
+
+        return StepMotorController { cur_pos, tgt_pos, step_delay_ms, thread_handle, kill_switch}
+    }
+
+    pub fn set_pos(&self, pos: i32) {
+        self.tgt_pos.store(pos, Ordering::Relaxed);
+    }
+
+    pub fn reset(&self) {
+        self.tgt_pos.store(0, Ordering::Relaxed);
+        self.cur_pos.store(0, Ordering::Relaxed);
+    }
+
+    pub fn stop(&self) {
+        self.tgt_pos.store(self.cur_pos.load(Ordering::Relaxed), Ordering::Relaxed);
+    }
+
+    pub fn set_step_delay_ms(&self, step_delay_ms: u32) {
+        self.step_delay_ms.store(step_delay_ms, Ordering::Relaxed);
+    }
+
+    pub fn is_stopped(&self) -> bool {
+        self.tgt_pos.load(Ordering::Relaxed) == self.cur_pos.load(Ordering::Relaxed)
+    }
+
+    pub fn wait_stop(&self) {
+        loop { if self.is_stopped() { break; } }
+    }
+
+    pub fn move_on(&self, delta_pos: i32) {
+        self.tgt_pos.store(self.cur_pos.load(Ordering::Relaxed) + delta_pos, Ordering::Relaxed);
+    }
+}
+
+impl Drop for StepMotorController {
+    fn drop(&mut self){
+        self.kill_switch.store(true, Ordering::Relaxed);
+        if let Some(thread_handle) = self.thread_handle.take() {
+            thread_handle.join().expect("Control thread did not panic"); // Maybe fuck it who cares anyway
         }
     }
 }
