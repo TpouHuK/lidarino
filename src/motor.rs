@@ -23,10 +23,15 @@ pub enum StepDirection {
 }
 
 impl StepMotor {
-    pub fn new(pins: [u8; 4]) -> StepMotor {
-        let gpio = Gpio::new().expect("access to gpio exists");
-        let dev_pins: [OutputPin; 4] = core::array::from_fn(|i| gpio.get(pins[i]).expect("got_pin").into_output_low() );
-        return StepMotor{ state: MotorState::Disabled, pins: dev_pins };
+    pub fn new(pin_numbers: [u8; 4]) -> StepMotor {
+        let gpio = Gpio::new().expect("Error creating GPIO");
+        let pins = core::array::from_fn(
+            |i| gpio.get(pin_numbers[i])
+                .expect("Error creating pin")
+                .into_output_low()
+            );
+
+        StepMotor{ state: MotorState::Disabled, pins }
     }
 
     pub fn do_full_step(&mut self, dir: StepDirection) {
@@ -34,8 +39,7 @@ impl StepMotor {
             MotorState::Disabled => {
                 self.state = MotorState::OnStep(0);
                 self.pins[0].set_high();
-                self.pins[1].set_high();
-            },
+                self.pins[1].set_high(); },
 
             MotorState::OnStep(step) => {
                 let full_steps = [
@@ -109,16 +113,18 @@ fn control_loop(mut motor: StepMotor, cur_pos: Arc<AtomicI32>, tgt_pos: Arc<Atom
         if kill_switch.load(Ordering::Relaxed) { break; }
 
         let diff = tgt_pos.load(Ordering::Relaxed) - cur_pos.load(Ordering::Relaxed);
-        if diff > 0 {
-            motor.do_full_step(StepDirection::Forward);
-            cur_pos.fetch_add(1, Ordering::Relaxed);
-            thread::sleep(Duration::from_millis(step_delay_ms.load(Ordering::Relaxed) as u64));
-        } else if diff < 0 {
-            motor.do_full_step(StepDirection::Backward);
-            cur_pos.fetch_add(-1, Ordering::Relaxed);
-            thread::sleep(Duration::from_millis(step_delay_ms.load(Ordering::Relaxed) as u64));
-        } else {
-            // Condvar.wait()
+        match diff {
+            1.. => {  // Positive integer
+                motor.do_full_step(StepDirection::Forward);
+                cur_pos.fetch_add(1, Ordering::Relaxed);
+                thread::sleep(Duration::from_millis(step_delay_ms.load(Ordering::Relaxed) as u64));
+            },
+            i32::MIN..=-1 => { // Negative integer
+                motor.do_full_step(StepDirection::Backward);
+                cur_pos.fetch_add(-1, Ordering::Relaxed);
+                thread::sleep(Duration::from_millis(step_delay_ms.load(Ordering::Relaxed) as u64));
+            },
+            0 => { }, // Zero
         }
     }
 }

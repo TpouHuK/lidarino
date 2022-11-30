@@ -1,2 +1,5 @@
 [build]
 default-target = "arm-unknown-linux-gnueabihf"  
+
+[profile.release]
+strip = true
