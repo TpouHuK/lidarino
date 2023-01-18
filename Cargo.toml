@@ -7,6 +7,13 @@ edition = "2018"
 
 [dependencies]
 rppal = "0.14.0"
+mpu6050 = "0.1.6"
+i2cdev = "0.5.1"
+linux-embedded-hal = { version = "0.3" } # onli i2c feature
+tokio = { version = "1", features = ["full"] }
+warp = "0.3"
+mio-serial = "5.0.4"
+# opencv = { version = "0.74", default-features = false, features = ["imgproc", "highgui"]}
 
 [profile.release]
 strip = true

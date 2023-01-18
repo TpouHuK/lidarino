@@ -1,5 +1,2 @@
-[build]
-default-target = "arm-unknown-linux-gnueabihf"  
-
-[profile.release]
-strip = true
+[target.arm-unknown-linux-gnueabihf]
+dockerfile = "./dockerfile"
