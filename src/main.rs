@@ -1,3 +1,4 @@
+#![allow(dead_code, unused_imports)]
 mod motor;
 use motor::*;
 
@@ -7,7 +8,6 @@ use mpu::*;
 mod distance;
 use distance::*;
 
-#[allow(dead_code)]
 fn wait_enter() {
     use std::io::stdin;
     let mut _s = String::new();

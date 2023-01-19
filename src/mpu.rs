@@ -9,31 +9,56 @@ use mpu9250::*;
 
 const I2C_ADDR: &str = "/dev/i2c-1";
 
-pub struct MPU {
+pub struct Mpu {
     mpu9250: Mpu9250<I2cDevice<I2cdev>, mpu9250::Marg>,
     madgwick: Madgwick<f32>,
     sample_period: Duration,
 }
 
-impl MPU {
+use nalgebra::base::Vector3;
+
+impl Mpu {
     pub fn new(sample_period: Duration) -> Self {
         let i2c = I2cdev::new(I2C_ADDR).unwrap();
-        let mut mpu9250 = Mpu9250::marg_default(i2c, &mut Delay).expect("unable to make MPU9250");
+        let mpu9250 = Mpu9250::marg_default(i2c, &mut Delay).expect("unable to make MPU9250");
         let filter_gain = 0.1;
         let madgwick = Madgwick::new(sample_period.as_secs_f32(), filter_gain);
 
 
-        MPU { mpu9250 , madgwick, sample_period }
+        Mpu { mpu9250 , madgwick, sample_period }
     }
 
-    pub fn update(&mut self) {
-        use nalgebra::base::Vector3;
-        let all: MargMeasurements<Vector3<f32>>  = self.mpu9250.all().expect("unable to read from MPU");
-        self.madgwick.update(&all.gyro, &all.accel, &all.mag);
+    pub fn calibrate(&mut self) {
+        // Accelerometer average is uleses, cause we need to do it for every direction
+        let _accelerometer_avg: [f32; 3] = self.mpu9250.calibrate_at_rest(&mut Delay)
+            .expect("calibration failed");
+    }
+
+    pub fn update(&mut self) -> &nalgebra::Unit<nalgebra::Quaternion<f32>> {
+        let all: MargMeasurements<Vector3<f32>>  = self.mpu9250.all()
+            .expect("unable to read from MPU");
+        
+        // TODO use magnetometer for god's sake
+        //self.madgwick.update(&all.gyro, &all.accel, &all.mag)
+        self.madgwick.update_imu(&all.gyro, &all.accel)
+            .expect("Madgwick update succeeded")
     }
 }
 
-pub fn test_mpu() {
+pub fn test_madwick_mpu() {
+    let mut mpu = Mpu::new(Duration::from_millis(10));
+    println!("Calibration started.");
+    mpu.calibrate();
+    println!("Calibration finished.");
+
+    loop {
+        let quat = mpu.update();
+        let (roll, pitch, yaw) = quat.euler_angles();
+        println!("pitch={pitch}, roll={roll}, yaw={yaw}");
+    }
+}
+
+pub fn test_raw_mpu() {
     let i2c = I2cdev::new(I2C_ADDR).unwrap();
     let mut mpu9250 = Mpu9250::marg_default(i2c, &mut Delay).expect("unable to make MPU9250");
 
