@@ -1,24 +1,26 @@
-use std::time::{Duration};
+use std::time::Duration;
 use std::thread;
 use std::sync::atomic::{AtomicU32, AtomicI32, AtomicBool, Ordering};
-use std::sync::{Arc};
+use std::sync::Arc;
 
 use rppal::gpio::{Gpio, OutputPin};
 
 #[derive(Clone, Copy, Debug)]
 enum MotorState {
-    Disabled,
+    Unknown,
     OnStep(i8),
 }
 
 pub struct StepMotor {
     state: MotorState,
+    power_on: bool,
     pins: [OutputPin; 4],
 }
 
 #[derive(Clone, Copy)]
 pub enum StepDirection {
     Forward = 1,
+    Nothing = 0,
     Backward = -1,
 }
 
@@ -31,15 +33,17 @@ impl StepMotor {
                 .into_output_low()
             );
 
-        StepMotor{ state: MotorState::Disabled, pins }
+        StepMotor{ state: MotorState::Unknown, power_on: false, pins }
     }
 
     pub fn do_full_step(&mut self, dir: StepDirection) {
         match self.state {
-            MotorState::Disabled => {
+            MotorState::Unknown => {
                 self.state = MotorState::OnStep(0);
                 self.pins[0].set_high();
-                self.pins[1].set_high(); },
+                self.pins[1].set_high();
+                self.power_on = true;
+            },
 
             MotorState::OnStep(step) => {
                 let full_steps = [
@@ -57,16 +61,19 @@ impl StepMotor {
                 for i in 0..4 {
                     if full_steps[new_step as usize][i] { self.pins[i].set_high(); } else {self.pins[i].set_low(); }
                 }
+                self.power_on = true;
             }
         }
     }
 
+    // Don't use yet
     pub fn do_half_step(&mut self, dir: StepDirection) {
         match self.state {
-            MotorState::Disabled => {
+            MotorState::Unknown => {
                 self.state = MotorState::OnStep(0);
                 self.pins[0].set_high();
                 self.pins[1].set_high();
+                self.power_on = true;
             },
 
             MotorState::OnStep(step) => {
@@ -85,8 +92,21 @@ impl StepMotor {
                 for i in 0..4 {
                     if half_steps[new_step as usize][i] { self.pins[i].set_high(); } else {self.pins[i].set_low(); }
                 }
+                self.power_on = true;
             }
         }
+    }
+
+    pub fn disable_power(&mut self) {
+        self.power_on = false;
+        for i in 0..4 {
+            self.pins[i].set_low();
+        }
+    }
+
+    pub fn enable_power(&mut self) {
+        self.power_on = true;
+        self.do_full_step(StepDirection::Nothing); // TODO fix half_steps
     }
 }
 

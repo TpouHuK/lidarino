@@ -117,12 +117,11 @@ const PITCH_RANGE: Range<i32> = -1500..500;
 
 fn start_scan(pitch_control: &StepMotorController, yaw_control: &StepMotorController, distance_sensor: &mut DistanceSensor) {
     for yaw in YAW_RANGE.step_by(100) {
+        yaw_control.set_pos(yaw);
+        yaw_control.wait_stop();
         for pitch in PITCH_RANGE.step_by(100) {
             pitch_control.set_pos(pitch);
-            yaw_control.set_pos(yaw);
-
             pitch_control.wait_stop();
-            yaw_control.wait_stop();
 
             let m = make_measurement(pitch_control, yaw_control, distance_sensor);
             println!("{{ \"pitch\": {}, \"yaw\": {}, \"distance_mm\": {} }},", m.0, m.1, m.2);
