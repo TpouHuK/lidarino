@@ -148,7 +148,7 @@ impl StepMotorController {
         });
         let thread_handle = Some(thread_handle);
 
-        return StepMotorController { cur_pos, tgt_pos, step_delay_ms, thread_handle, kill_switch}
+        StepMotorController { cur_pos, tgt_pos, step_delay_ms, thread_handle, kill_switch}
     }
 
     pub fn set_pos(&self, pos: i32) {

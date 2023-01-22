@@ -44,6 +44,26 @@ impl DistanceSensor {
         Ok((number, q_number))
      }
 
+     pub fn read_distance_fast(&mut self) -> Result<(u32, u32)> {
+        self.tty_port.write_all(b"F").expect("enabled laser");
+        self.tty_port.flush().expect("enabled laser");
+
+
+        // TODO add error handling
+        let mut buf: Vec<u8> = vec![0; 16];
+        self.tty_port.read_exact(&mut buf)?; // TOOD FIX ERROR
+        // 'D: 5.614m,1211\r\n'
+        let range = [&buf[3..=3], &buf[5..=7]].concat();
+        let string = String::from_utf8(range).unwrap();
+        let number:u32 = string.parse().unwrap();
+
+        let q_range = &buf[10..=13];
+        let q_string = String::from_utf8(q_range.to_vec()).unwrap();
+        let q_number:u32 = q_string.parse().unwrap();
+
+        Ok((number, q_number))
+     }
+
      pub fn stop(&mut self) -> Result<()> {
         self.tty_port.write_all(b"C").expect("enabled laser");
         self.tty_port.flush().expect("enabled laser");

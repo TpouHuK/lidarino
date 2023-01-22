@@ -50,11 +50,12 @@ pub fn test_madwick_mpu() {
     println!("Calibration started.");
     mpu.calibrate();
     println!("Calibration finished.");
+    println!();
 
     loop {
         let quat = mpu.update();
         let (roll, pitch, yaw) = quat.euler_angles();
-        println!("pitch={pitch}, roll={roll}, yaw={yaw}");
+        print!("\rpitch={pitch:>6.2}, roll={roll:>6.2}, yaw={yaw:>6.2}");
     }
 }
 

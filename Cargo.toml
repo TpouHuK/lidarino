@@ -15,8 +15,14 @@ mio-serial = "5.0.4"
 mpu9250 = { version = "0.24.1", features = ["i2c"] }
 ahrs = "0.6.0"
 nalgebra = "0.31.4" # Using the version that ahrs requires
+rplidar_drv = "0.6.0"
+# serialport = "4.2.0"
 # opencv = { version = "0.74", default-features = false, features = ["imgproc", "highgui"]}
 
 [[bin]]
 name = "test_mpu"
 path = "src/test_mpu.rs"
+
+[[bin]]
+name = "lidar_test"
+path = "src/lidar_test.rs"
