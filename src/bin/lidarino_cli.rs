@@ -1,14 +1,9 @@
 #![allow(dead_code, unused_imports)]
-mod motor;
 use std::ops::Range;
 
-use motor::*;
-
-mod mpu;
-use mpu::*;
-
-mod distance;
-use distance::*;
+use lidarino::motor::*;
+use lidarino::distance::*;
+use lidarino::mpu::*;
 
 fn wait_enter() {
     use std::io::stdin;

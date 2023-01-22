@@ -1,6 +1,4 @@
-#![allow(dead_code, unused_imports)]
-mod mpu;
-use mpu::*;
+use lidarino::mpu::*;
 
 fn main() {
     test_madwick_mpu();

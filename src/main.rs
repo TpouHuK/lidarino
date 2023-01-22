@@ -1,5 +1,5 @@
 #![allow(dead_code, unused_imports)]
-mod motor;
+pub mod motor;
 use std::ops::Range;
 
 use motor::*;
