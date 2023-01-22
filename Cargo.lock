@@ -482,6 +482,7 @@ dependencies = [
  "mpu9250",
  "nalgebra",
  "rplidar_drv",
+ "rpos_drv",
  "rppal",
  "tokio",
  "warp",
