@@ -1,9 +1,9 @@
 extern crate rplidar_drv;
 
-use std::{time::Duration, thread::sleep};
+
 
 use rplidar_drv::*;
-use rpos_drv::{Channel, Error};
+use rpos_drv::{Channel};
 
 fn main() {
     let mut serial_port = mio_serial::new("/dev/ttyUSB0", 115200)
