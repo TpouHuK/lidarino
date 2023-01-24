@@ -17,4 +17,8 @@ ahrs = "0.6.0"
 nalgebra = "0.31.4" # Using the version that ahrs requires
 rplidar_drv = "0.6.0"
 rpos_drv = "0.2.0"
+lazy_static = "1.4.0"
+serde_json = "1.0.91"
+env_logger = "0.10.0"
+serde = { version = "1.0.152", features = ["derive"] }
 # opencv = { version = "0.74", default-features = false, features = ["imgproc", "highgui"]}

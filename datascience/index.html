@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <title>tpouhuk's robot controls</title>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    </head>
+
+    <header>
+        <h1>Tpouhuk's robot control panel</h1>
+    </header>
+
+    <script>
+        const baseUrl = 'http://localhost:8000/'
+
+        const position = document.getElementById("position")
+        const setPositionResult = document.getElementById("set-position-result")
+        const points = document.getElementById("points")
+
+        const getPosition = event => {
+            event.preventDefault()
+
+            let form = event.target
+            let formData = new FormData(form)
+            let dict = Object.fromEntries(formData)
+
+            fetch(baseUrl + 'position?' + new URLSearchParams(dict))
+            .then(response => response.json())
+            .then(data => position.innerHTML = data.position)
+        }
+
+        const setPosition = event => {
+            event.preventDefault()
+
+            let form = event.target
+            let formData = new FormData(form)
+            let dict = Object.fromEntries(formData)
+            let json = JSON.stringify(dict)
+
+            fetch(baseUrl + 'position/', {
+                method: "post",
+                headers: {
+                    "Accept": "application/json",
+                    "Content-Type": "application/json"
+                },
+                body: json
+            }).then(response => {
+                if (response.status == 200) {
+                    setPositionResult.innerHTML = "success"
+                } else {
+                    setPositionResult.innerHTML = "failure"
+                }
+            })
+        }
+
+        const getPoints = event => {
+            event.preventDefault()
+
+            fetch(baseUrl + 'points/')
+            .then(response => response.text())
+            .then(data => points.innerHTML = data)
+        }
+    </script>
+
+    <body>
+        <h4>Get current position</h4>
+        <form onsubmit="getPosition()">
+            <label>yaw:
+                <input type="number" name="yaw" />
+            </label>
+            <label>pitch:
+                <input type="number" name="pitch" />
+            </label>
+            <label>distance:
+                <input type="number" name="distance" />
+            </label>
+            <input type="submit" value="Get" />
+        </form>
+        Current position: <div id="position">unknown</div>
+
+        <h4>Set current position</h4>
+        <form onsubmit="setPosition()">
+            <label>yaw:
+                <input type="number" name="yaw" />
+            </label>
+            <label>pitch:
+                <input type="number" name="pitch" />
+            </label>
+            <input type="submit" value="Set" />
+        </form>
+        <div id="set-position-result"></div>
+
+        <button onclick="getPoints()">Get points</button>
+        <div id="points"></div>
+    </body>
+</html>

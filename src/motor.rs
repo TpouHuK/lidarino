@@ -152,19 +152,21 @@ fn control_loop(mut motor: StepMotor, cur_pos: Arc<AtomicI32>, tgt_pos: Arc<Atom
 impl StepMotorController {
     pub fn new(motor: StepMotor, step_delay_ms: u32) -> Self {
         let cur_pos = Arc::new(AtomicI32::new(0));
-        let cur_pos2 = cur_pos.clone();
-
         let tgt_pos = Arc::new(AtomicI32::new(0));
-        let tgt_pos2 = tgt_pos.clone();
-
         let step_delay_ms: Arc<AtomicU32> = Arc::new(AtomicU32::new(step_delay_ms));
-        let step_delay_ms2 = step_delay_ms.clone();
-        
         let kill_switch = Arc::new(AtomicBool::new(false));
-        let kill_switch2 = kill_switch.clone();
 
+        let cur_pos_clone = cur_pos.clone();
+        let tgt_pos_clone = tgt_pos.clone();
+        let step_delay_ms_clone = step_delay_ms.clone();
+        let kill_switch_clone = kill_switch.clone();
         let thread_handle = thread::spawn(move || {
-            control_loop(motor, cur_pos2, tgt_pos2, step_delay_ms2, kill_switch2)
+            control_loop(motor,
+                         cur_pos_clone,
+                         tgt_pos_clone,
+                         step_delay_ms_clone,
+                         kill_switch_clone,
+                         )
         });
         let thread_handle = Some(thread_handle);
 
@@ -207,5 +209,61 @@ impl Drop for StepMotorController {
         if let Some(thread_handle) = self.thread_handle.take() {
             thread_handle.join().expect("Control thread did not panic"); // Maybe fuck it who cares anyway
         }
+    }
+}
+
+pub struct DummyController {
+    pub cur_pos: Arc<AtomicI32>,
+    pub tgt_pos: Arc<AtomicI32>,
+    pub step_delay_ms: Arc<AtomicU32>,
+}
+impl DummyController {
+    pub fn new() -> Self {
+        let cur_pos = Arc::new(AtomicI32::new(0));
+        let tgt_pos = Arc::new(AtomicI32::new(0));
+        let step_delay_ms: Arc<AtomicU32> = Arc::new(AtomicU32::new(3));
+        Self{cur_pos, tgt_pos, step_delay_ms}
+    }
+
+    pub fn get_cur_pos(&self) -> i32 {
+        self.cur_pos.load(Ordering::Relaxed)
+    }
+
+    pub fn get_tgt_pos(&self)  -> i32 {
+        self.cur_pos.load(Ordering::Relaxed)
+    }
+
+    pub fn get_step_delay_ms(&self) -> u32 {
+        self.step_delay_ms.load(Ordering::Relaxed)
+    }
+
+    pub fn set_pos(&self, pos: i32) {
+        self.tgt_pos.store(pos, Ordering::Relaxed);
+        self.cur_pos.store(pos, Ordering::Relaxed);
+    }
+
+    pub fn reset(&self) {
+        self.tgt_pos.store(0, Ordering::Relaxed);
+        self.cur_pos.store(0, Ordering::Relaxed);
+    }
+
+    pub fn stop(&self) {
+        self.tgt_pos.store(self.cur_pos.load(Ordering::Relaxed), Ordering::Relaxed);
+    }
+
+    pub fn set_step_delay_ms(&self, step_delay_ms: u32) {
+        self.step_delay_ms.store(step_delay_ms, Ordering::Relaxed);
+    }
+
+    pub fn is_stopped(&self) -> bool {
+        self.tgt_pos.load(Ordering::Relaxed) == self.cur_pos.load(Ordering::Relaxed)
+    }
+
+    pub fn wait_stop(&self) {
+        loop { if self.is_stopped() { break; } }
+    }
+
+    pub fn move_on(&self, delta_pos: i32) {
+        self.tgt_pos.store(self.cur_pos.load(Ordering::Relaxed) + delta_pos, Ordering::Relaxed);
     }
 }

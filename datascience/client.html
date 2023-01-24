@@ -1,0 +1,29 @@
+<!doctype html>
+<html>
+
+<head>
+    <title>Lidarino client</title>
+    <meta name="description" content="Lidarino client for control">
+</head>
+
+<body>
+    <script>
+        (async function(){
+        const response = await fetch("http://127.0.0.1:3030/command", {
+        method: 'POST',
+        headers: {
+        'Accept': 'application/json',
+        'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({})
+        });
+
+        response.json().then(data => {
+        console.log(data);
+        });
+    })();
+    </script>
+    
+</body>
+    
+</html>

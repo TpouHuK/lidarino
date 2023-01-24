@@ -1,6 +1,104 @@
 use mio_serial::*;
-use std::thread::sleep;
+use std::sync::Condvar;
+use std::thread;
 use std::time::Duration;
+use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
+use std::sync::{Arc, Mutex};
+
+type Status = Arc<(Mutex<bool>, Condvar)>;
+type DistanceReading = Arc<(AtomicU32, AtomicU32)>;
+
+fn distance_sensor_control_loop( /*distance_sensor: DistanceSensor, */ status: Status, distance_reading: DistanceReading, kill_switch: Arc<AtomicBool> ) {
+    let (lock, cvar) = &*status;
+    let mut is_done = lock.lock().unwrap();
+
+    loop {
+        is_done = cvar.wait(is_done).unwrap();
+        if kill_switch.load(Ordering::Relaxed) { break; }
+        if !*is_done {
+            drop(is_done);
+            //let distance = distance_sensor.read_distance()
+            let reading = (42u32, 00u32);
+            thread::sleep(Duration::from_secs(3));
+
+            let (dist, qual) = &*distance_reading;
+            dist.store(reading.0, Ordering::Relaxed);
+            qual.store(reading.1, Ordering::Relaxed);
+            
+            is_done = lock.lock().unwrap();
+            *is_done = true;
+            cvar.notify_all();
+        }
+    }
+    *is_done = true;
+    cvar.notify_all();
+}
+
+pub struct DistanceController {
+    pub status: Status,
+    pub distance_reading: DistanceReading,
+
+    thread_handle: Option<thread::JoinHandle<()>>,
+    kill_switch: Arc<AtomicBool>
+}
+
+impl DistanceController {
+    pub fn new(/*distance_sensor: DistanceSensor*/) -> Self {
+        let distance_reading = Arc::new((AtomicU32::new(0), AtomicU32::new(0)));
+        let status = Arc::new((Mutex::new(true), Condvar::new()));
+        let kill_switch = Arc::new(AtomicBool::new(false));
+
+        let distance_reading_clone = distance_reading.clone();
+        let status_clone = status.clone();
+        let kill_switch_clone = kill_switch.clone();
+
+        let thread_handle = thread::spawn(move || {
+            distance_sensor_control_loop(status_clone,
+            distance_reading_clone,
+            kill_switch_clone,
+            )
+        });
+        DistanceController{ status, distance_reading, thread_handle: Some(thread_handle), kill_switch }
+    }
+
+    pub fn wait_until_done(&self) {
+        let (lock, cvar) = &*self.status;
+        let mut is_done = lock.lock().unwrap();
+        while !*is_done {
+            is_done = cvar.wait(is_done).unwrap();
+        }
+    }
+
+    pub fn request_measurement(&self) {
+        let (lock, cvar) = &*self.status;
+        let mut is_done = lock.lock().unwrap();
+        *is_done = false;
+        cvar.notify_all();
+    }
+    
+    pub fn get_measurement(&self) -> (u32, u32) {
+        self.request_measurement();
+        self.wait_until_done();
+        let (distance, quality) = &*self.distance_reading;
+        (distance.load(Ordering::Relaxed), quality.load(Ordering::Relaxed))
+    }
+
+    pub fn get_last_measurement(&self) -> (u32, u32) {
+        let (distance, quality) = &*self.distance_reading;
+        (distance.load(Ordering::Relaxed), quality.load(Ordering::Relaxed))
+    }
+}
+
+impl Drop for DistanceController {
+    /// Never used yet as DistanceController is static
+    fn drop(&mut self){
+        self.kill_switch.store(true, Ordering::Relaxed);
+        self.status.1.notify_all();
+        if let Some(thread_handle) = self.thread_handle.take() {
+            thread_handle.join().expect("Control thread did not panic");
+        }
+    }
+}
 
 pub struct DistanceSensor {
     tty_port: Box<dyn SerialPort>,
