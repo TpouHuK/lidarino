@@ -1,3 +1,5 @@
+fn main() { } // No mpu for macos build as we can't compile I2C lib
+/*
 use std::thread;
 use lidarino::mpu::*;
 use linux_embedded_hal::{I2cdev, Delay};
@@ -54,4 +56,4 @@ pub fn test_raw_mpu() {
 fn main() {
     test_madwick_mpu();
     test_raw_mpu();
-}
+}*/

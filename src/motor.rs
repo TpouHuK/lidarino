@@ -3,14 +3,14 @@ use std::thread;
 use std::sync::atomic::{AtomicU32, AtomicI32, AtomicBool, Ordering};
 use std::sync::Arc;
 
-use rppal::gpio::{Gpio, OutputPin};
+// use rppal::gpio::{Gpio, OutputPin};
 
 #[derive(Clone, Copy, Debug)]
 enum MotorState {
     Unknown,
     OnStep(i8),
 }
-
+/*
 pub struct StepMotor {
     state: MotorState,
     power_on: bool,
@@ -211,7 +211,7 @@ impl Drop for StepMotorController {
         }
     }
 }
-
+*/
 pub struct DummyController {
     pub cur_pos: Arc<AtomicI32>,
     pub tgt_pos: Arc<AtomicI32>,

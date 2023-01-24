@@ -6,9 +6,9 @@ edition = "2018"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-rppal = "0.14.0"
-i2cdev = "0.5.1"
-linux-embedded-hal = { version = "0.3" } # onli i2c feature
+# rppal = "0.14.0"
+# i2cdev = "0.5.1"
+# linux-embedded-hal = { version = "0.3" } # onli i2c feature
 tokio = { version = "1", features = ["full"] }
 warp = "0.3"
 mio-serial = "5.0.4"

@@ -4,11 +4,12 @@ use std::time::Duration;
 use std::sync::Arc;
 
 use ahrs::{ Madgwick, Ahrs } ;
-use linux_embedded_hal::{I2cdev, Delay};
+//use linux_embedded_hal::{I2cdev, Delay};
 use mpu9250::*;
 
 const I2C_ADDR: &str = "/dev/i2c-1";
 
+/*
 pub struct Mpu {
     mpu9250: Mpu9250<I2cDevice<I2cdev>, mpu9250::Marg>,
     gyro_bias: [f32; 3],
@@ -75,4 +76,4 @@ impl Mpu {
         self.madgwick.update_imu(&gyro, &all.accel)
             .expect("Madgwick update succeeded")
     }
-}
+} */
