@@ -21,4 +21,5 @@ lazy_static = "1.4.0"
 serde_json = "1.0.91"
 env_logger = "0.10.0"
 serde = { version = "1.0.152", features = ["derive"] }
+rppal-mcp23s17 = "0.0.3"
 # opencv = { version = "0.74", default-features = false, features = ["imgproc", "highgui"]}
