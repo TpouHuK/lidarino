@@ -4,6 +4,7 @@ use std::ops::Range;
 use lidarino::distance::*;
 use lidarino::motor::*;
 use lidarino::mpu::*;
+use lidarino::mcp23s17::*;
 use warp::Filter;
 
 fn sensors() -> String {
@@ -121,8 +122,12 @@ fn start_scan(
 fn main() {
     println!("WELCOME TO LIDARINO");
 
-    let pitch_motor = StepMotor::new([4, 17, 27, 22]);
-    let yaw_motor = StepMotor::new([10, 9, 11, 5]);
+    let mcp23s17_controller = Mcp23s17Controller::new();
+    let pitch_pins: [VirtualPin; 4] = core::array::from_fn(|i| mcp23s17_controller.get_pin(i as u8));
+    let yaw_pins: [VirtualPin; 4] = core::array::from_fn(|i| mcp23s17_controller.get_pin(4+i as u8));
+
+    let pitch_motor = StepMotor::new(pitch_pins);
+    let yaw_motor = StepMotor::new(yaw_pins);
 
     let pitch_control = StepMotorController::new(pitch_motor, 3);
     let yaw_control = StepMotorController::new(yaw_motor, 3);
@@ -131,17 +136,3 @@ fn main() {
     manual_control(&pitch_control, &yaw_control, &mut distance_sensor);
     start_scan(&pitch_control, &yaw_control, &mut distance_sensor);
 }
-
-/* #[tokio::main]
-async fn main() {
-    let yaw = warp::path!("yaw" / i64).map(| yaw | { format!("yaw {yaw}!") } );
-    let pitch = warp::path!("pitch" / i64).map( | pitch | { format!("pitch {pitch}!") } );
-    let sensors = warp::path!("sensors").map( sensors );
-
-    println!("we are running!");
-    warp::serve(yaw.or(pitch).or(sensors))
-        .run(([127, 0, 0, 1], 80))
-        .await;
-    //test_mpu();
-    //test_motors();
-} */

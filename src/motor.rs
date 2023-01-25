@@ -4,6 +4,7 @@ use std::sync::atomic::{AtomicU32, AtomicI32, AtomicBool, Ordering};
 use std::sync::Arc;
 
 use rppal::gpio::{Gpio, OutputPin};
+use crate::mcp23s17::*;
 
 #[derive(Clone, Copy, Debug)]
 enum MotorState {
@@ -14,7 +15,7 @@ enum MotorState {
 pub struct StepMotor {
     state: MotorState,
     power_on: bool,
-    pins: [OutputPin; 4],
+    pins: [VirtualPin; 4],
 }
 
 #[derive(Clone, Copy)]
@@ -25,14 +26,7 @@ pub enum StepDirection {
 }
 
 impl StepMotor {
-    pub fn new(pin_numbers: [u8; 4]) -> StepMotor {
-        let gpio = Gpio::new().expect("Error creating GPIO");
-        let pins = core::array::from_fn(
-            |i| gpio.get(pin_numbers[i])
-                .expect("Error creating pin")
-                .into_output_low()
-            );
-
+    pub fn new(pins: [VirtualPin; 4]) -> StepMotor {
         StepMotor{ state: MotorState::Unknown, power_on: false, pins }
     }
 
