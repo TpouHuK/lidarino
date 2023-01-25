@@ -554,6 +554,9 @@ dependencies = [
  "rplidar_drv",
  "rpos_drv",
  "rppal",
+ "rppal-mcp23s17",
+ "serde",
+ "serde_json",
  "tokio",
  "warp",
 ]
