@@ -71,6 +71,17 @@ fn send_current_state() -> warp::reply::Json {
     warp::reply::json(&reply)
 }
 
+struct ScanRequest{}
+
+fn reqest_scan(request: ScanRequest) -> warp::reply::Json {
+    let scan_id = 0;
+    let reply = json!({
+        "status": "Ok",
+        "scan_id": scan_id,
+    });
+    warp::reply::json(&reply)
+}
+
 #[derive(Serialize, Deserialize, Debug)]
 struct SetPosition {
     yaw: Option<i32>,

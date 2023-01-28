@@ -125,7 +125,13 @@ fn main() {
     println!("WELCOME TO LIDARINO");
 
     let mcp23s17_controller = Mcp23s17Controller::new();
-    let pitch_pins: [VirtualPin; 4] = core::array::from_fn(|i| mcp23s17_controller.get_pin(i as u8));
+    let pitch_pins: [VirtualPin; 4] = [
+        mcp23s17_controller.get_pin(1),
+        mcp23s17_controller.get_pin(2),
+        mcp23s17_controller.get_pin(0),
+        mcp23s17_controller.get_pin(3),
+    ];
+        //core::array::from_fn(|i| mcp23s17_controller.get_pin(i as u8));
     let yaw_pins: [VirtualPin; 4] = core::array::from_fn(|i| mcp23s17_controller.get_pin(4+i as u8));
 
     let pitch_motor = StepMotor::new(pitch_pins);

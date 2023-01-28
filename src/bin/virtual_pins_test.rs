@@ -6,18 +6,20 @@ fn main() {
     let mcp23s17_controller = Mcp23s17Controller::new();
     let c = mcp23s17_controller;
     let stdin = io::stdin();
-    let mut user_input = String::with_capacity(100);
+    let mut input_buf = String::with_capacity(100);
 
     println!("USAGE: [pin_number][t|f], for e.x.: '0f' or '7t' '5t'");
     loop {
         print!("[MANUAL_PIN_CONTROL]-> ");
         io::stdout().flush().unwrap();
 
-        stdin.read_line(&mut user_input).unwrap();
-        
-        // Don't judge me, this is fucking horrible code
-        // But it works :-)
-        match user_input.trim() {
+        stdin.read_line(&mut input_buf).unwrap();
+        let cmd = input_buf.trim();
+        let pin_num: u8 = cmd[0..1].parse().unwrap();
+        let pin_value: bool = &cmd[1..2] == "t";
+        c.get_pin(pin_num).set_level(pin_value);
+        /*
+        match cmd {
             "0t" => { c.get_pin(0).set_high(); }
             "1t" => { c.get_pin(1).set_high(); }
             "2t" => { c.get_pin(2).set_high(); }
@@ -37,5 +39,5 @@ fn main() {
             "7f" => { c.get_pin(7).set_low(); }
             _ => { println!("Invalid input")}
         }
-    }
+    }*/
 }
