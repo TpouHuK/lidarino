@@ -1,10 +1,10 @@
-use std::thread;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::time::Duration;
 use std::sync::Arc;
+use std::thread;
+use std::time::Duration;
 
-use ahrs::{ Madgwick, Ahrs } ;
-use linux_embedded_hal::{I2cdev, Delay};
+use ahrs::{Ahrs, Madgwick};
+use linux_embedded_hal::{Delay, I2cdev};
 use mpu9250::*;
 
 const I2C_ADDR: &str = "/dev/i2c-1";
@@ -27,12 +27,19 @@ impl Mpu {
 
         let gyro_bias = [0.0; 3];
 
-        Mpu { mpu9250 , madgwick, sample_period, gyro_bias }
+        Mpu {
+            mpu9250,
+            madgwick,
+            sample_period,
+            gyro_bias,
+        }
     }
 
     pub fn calibrate(&mut self) {
         // Accelerometer average is uleses, cause we need to do it for every direction
-        let _accelerometer_avg: [f32; 3] = self.mpu9250.calibrate_at_rest(&mut Delay)
+        let _accelerometer_avg: [f32; 3] = self
+            .mpu9250
+            .calibrate_at_rest(&mut Delay)
             .expect("calibration failed");
         eprintln!("Internal calibration done");
 
@@ -63,16 +70,17 @@ impl Mpu {
     }
 
     pub fn update(&mut self) -> &nalgebra::Unit<nalgebra::Quaternion<f32>> {
-        let all: MargMeasurements<Vector3<f32>>  = self.mpu9250.all()
-            .expect("unable to read from MPU");
-        
+        let all: MargMeasurements<Vector3<f32>> =
+            self.mpu9250.all().expect("unable to read from MPU");
+
         // TODO use magnetometer for god's sake
         //self.madgwick.update(&all.gyro, &all.accel, &all.mag)
         let mut gyro = all.gyro;
         for i in 0..3 {
             gyro[i] += self.gyro_bias[i];
         }
-        self.madgwick.update_imu(&gyro, &all.accel)
+        self.madgwick
+            .update_imu(&gyro, &all.accel)
             .expect("Madgwick update succeeded")
     }
 }

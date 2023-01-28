@@ -1,17 +1,17 @@
-use warp::Filter;
-use std::thread;
+use serde::{Deserialize, Serialize};
 use serde_json::json;
-use serde::{Serialize, Deserialize};
+use std::thread;
+use warp::Filter;
 
 #[macro_use]
 extern crate lazy_static;
 
-use lidarino::motor::*;
 use lidarino::distance::*;
+use lidarino::motor::*;
 
 const MOTOR_DELAY: u32 = 4;
 
-/* 
+/*
 lazy_static! {
     static ref YAW_CONTROLLER: StepMotorController = {
         let yaw_motor = StepMotor::new([10, 9, 11, 5]);
@@ -20,15 +20,11 @@ lazy_static! {
 } */
 
 lazy_static! {
-    static ref YAW_CONTROLLER: ControllerMock = {
-        ControllerMock::new()
-    };
+    static ref YAW_CONTROLLER: ControllerMock = { ControllerMock::new() };
 }
 
 lazy_static! {
-    static ref PITCH_CONTROLLER: ControllerMock = {
-        ControllerMock::new()
-    };
+    static ref PITCH_CONTROLLER: ControllerMock = { ControllerMock::new() };
 }
 
 lazy_static! {
@@ -52,7 +48,7 @@ fn measure_distance() -> warp::reply::Json {
         "distance_mm": distance,
         "quality": quality,
     });
-    
+
     warp::reply::json(&reply)
 }
 
@@ -71,7 +67,7 @@ fn send_current_state() -> warp::reply::Json {
     warp::reply::json(&reply)
 }
 
-struct ScanRequest{}
+struct ScanRequest {}
 
 fn reqest_scan(request: ScanRequest) -> warp::reply::Json {
     let scan_id = 0;
@@ -108,29 +104,39 @@ async fn start_http() {
     use warp::http::Method;
     let cors = warp::cors()
         .allow_any_origin()
-        .allow_headers(vec!["Access-Control-Allow-Headers", "Access-Control-Request-Method", "Access-Control-Request-Headers", "Origin", "Accept", "X-Requested-With", "Content-Type"])
-        .allow_methods(&[Method::GET, Method::POST, Method::PUT, Method::PATCH, Method::DELETE, Method::OPTIONS, Method::HEAD]);
+        .allow_headers(vec![
+            "Access-Control-Allow-Headers",
+            "Access-Control-Request-Method",
+            "Access-Control-Request-Headers",
+            "Origin",
+            "Accept",
+            "X-Requested-With",
+            "Content-Type",
+        ])
+        .allow_methods(&[
+            Method::GET,
+            Method::POST,
+            Method::PUT,
+            Method::PATCH,
+            Method::DELETE,
+            Method::OPTIONS,
+            Method::HEAD,
+        ]);
 
-    let command =
-        warp::post()
+    let command = warp::post()
         .and(warp::path!("position"))
         .and(warp::filters::body::json())
         .map(set_position);
 
-    let status = 
-        warp::get()
+    let status = warp::get()
         .and(warp::path!("status"))
         .map(send_current_state);
 
-    let measure_distance =
-        warp::post()
+    let measure_distance = warp::post()
         .and(warp::path!("measure_distance"))
         .map(measure_distance);
-    
-    let tree = command.or(status).or(measure_distance)
-        .with(cors);
 
-    warp::serve(tree)
-        .run(([127, 0, 0, 1], 8000))
-        .await;
+    let tree = command.or(status).or(measure_distance).with(cors);
+
+    warp::serve(tree).run(([127, 0, 0, 1], 8000)).await;
 }

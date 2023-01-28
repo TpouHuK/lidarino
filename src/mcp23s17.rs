@@ -1,8 +1,8 @@
-#![allow(clippy::new_without_default)] // Annoying during developing, TODO fix after
-
-use rppal_mcp23s17::{ChipSelect, HardwareAddress, Level, Mcp23s17, Port, RegisterAddress, SpiBus, SpiMode};
-use std::thread;
+use rppal_mcp23s17::{
+    ChipSelect, HardwareAddress, Level, Mcp23s17, Port, RegisterAddress, SpiBus, SpiMode,
+};
 use std::sync::mpsc::{self, Receiver, Sender};
+use std::thread;
 
 #[derive(Debug, Clone)]
 pub struct VirtualPin {
@@ -20,7 +20,12 @@ impl VirtualPin {
     }
 
     pub fn set_level(&self, high: bool) {
-        self.pin_req_tx.send(PinChangeRequest{ pin_num: self.pin_num, high } ).unwrap();
+        self.pin_req_tx
+            .send(PinChangeRequest {
+                pin_num: self.pin_num,
+                high,
+            })
+            .unwrap();
     }
 }
 
@@ -37,10 +42,13 @@ struct PinChangeRequest {
 
 fn controller_thread(rx: Receiver<PinChangeRequest>, mcp23s17: Mcp23s17) {
     use rppal_mcp23s17::*;
-    let pins: [pin::OutputPin; 8] = core::array::from_fn(
-        |i| mcp23s17.get(Port::GpioA, i as u8).unwrap()
-            .into_output_pin_low().unwrap()
-    );
+    let pins: [pin::OutputPin; 8] = core::array::from_fn(|i| {
+        mcp23s17
+            .get(Port::GpioA, i as u8)
+            .unwrap()
+            .into_output_pin_low()
+            .unwrap()
+    });
 
     loop {
         let msg = rx.recv().unwrap(); // TODO, exit instead of panic
@@ -51,6 +59,12 @@ fn controller_thread(rx: Receiver<PinChangeRequest>, mcp23s17: Mcp23s17) {
         } else {
             pins[pin_num].set_low().unwrap();
         }
+    }
+}
+
+impl Default for Mcp23s17Controller {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -73,10 +87,16 @@ impl Mcp23s17Controller {
             controller_thread(rx, mcp23s17);
         });
 
-        Self { pin_req_tx, thread_handle: Some(thread_handle) }
+        Self {
+            pin_req_tx,
+            thread_handle: Some(thread_handle),
+        }
     }
 
     pub fn get_pin(&self, pin_num: u8) -> VirtualPin {
-        VirtualPin{ pin_num, pin_req_tx: self.pin_req_tx.clone() }
+        VirtualPin {
+            pin_num,
+            pin_req_tx: self.pin_req_tx.clone(),
+        }
     }
 }

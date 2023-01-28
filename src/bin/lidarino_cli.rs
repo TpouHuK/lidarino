@@ -2,9 +2,9 @@
 use std::ops::Range;
 
 use lidarino::distance::*;
+use lidarino::mcp23s17::*;
 use lidarino::motor::*;
 use lidarino::mpu::*;
-use lidarino::mcp23s17::*;
 use warp::Filter;
 
 fn sensors() -> String {
@@ -129,8 +129,9 @@ fn main() {
         mcp23s17_controller.get_pin(0),
         mcp23s17_controller.get_pin(3),
     ];
-        //core::array::from_fn(|i| mcp23s17_controller.get_pin(i as u8));
-    let yaw_pins: [VirtualPin; 4] = core::array::from_fn(|i| mcp23s17_controller.get_pin(4+i as u8));
+    //core::array::from_fn(|i| mcp23s17_controller.get_pin(i as u8));
+    let yaw_pins: [VirtualPin; 4] =
+        core::array::from_fn(|i| mcp23s17_controller.get_pin(4 + i as u8));
 
     let pitch_motor = StepMotor::new(pitch_pins);
     let yaw_motor = StepMotor::new(yaw_pins);

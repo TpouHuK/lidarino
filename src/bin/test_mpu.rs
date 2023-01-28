@@ -1,8 +1,8 @@
-use std::thread;
 use lidarino::mpu::*;
-use linux_embedded_hal::{I2cdev, Delay};
-use std::time::Duration;
+use linux_embedded_hal::{Delay, I2cdev};
 use mpu9250::*;
+use std::thread;
+use std::time::Duration;
 
 const I2C_ADDR: &str = "/dev/i2c-1";
 
@@ -20,14 +20,14 @@ pub fn test_madwick_mpu() {
     }
 }
 
-
 pub fn test_raw_mpu() {
     let i2c = I2cdev::new(I2C_ADDR).unwrap();
     let mut mpu9250 = Mpu9250::marg_default(i2c, &mut Delay).expect("unable to make MPU9250");
 
     let who_am_i = mpu9250.who_am_i().expect("could not read WHO_AM_I");
-    let mag_who_am_i = mpu9250.ak8963_who_am_i()
-                              .expect("could not read magnetometer's WHO_AM_I");
+    let mag_who_am_i = mpu9250
+        .ak8963_who_am_i()
+        .expect("could not read magnetometer's WHO_AM_I");
 
     println!("WHO_AM_I: 0x{who_am_i:x}");
     println!("AK8963 WHO_AM_I: 0x{mag_who_am_i:x}");

@@ -1,13 +1,12 @@
 extern crate rplidar_drv;
 
-
-
 use rplidar_drv::*;
-use rpos_drv::{Channel};
+use rpos_drv::Channel;
 
 fn main() {
     let mut serial_port = mio_serial::new("/dev/ttyUSB0", 115200)
-            .open().expect("Failed to open ttyUSB0 port.");
+        .open()
+        .expect("Failed to open ttyUSB0 port.");
 
     serial_port
         .write_data_terminal_ready(false)
@@ -32,10 +31,7 @@ fn main() {
         device_info.firmware_version & 0xff
     );
     println!("    Hardware Version: {}", device_info.hardware_version);
-    println!(
-        "    Serial Number: {:?}",
-        device_info.serialnum
-    );
+    println!("    Serial Number: {:?}", device_info.serialnum);
 
     let device_health = rplidar
         .get_device_health()
@@ -79,10 +75,10 @@ fn main() {
         Ok(support) if support == true => {
             println!("Accessory board is detected and support motor control, starting motor...");
             rplidar.set_motor_pwm(600).expect("failed to start motor");
-        },
+        }
         Ok(_) => {
             println!("Accessory board is detected, but doesn't support motor control");
-        },
+        }
         Err(_) => {
             println!("Accessory board isn't detected");
         }
@@ -101,7 +97,11 @@ fn main() {
     loop {
         match rplidar.grab_scan() {
             Ok(scan) => {
-                println!("[{:6}s] {} points per scan", start_time.elapsed().as_secs(), scan.len());
+                println!(
+                    "[{:6}s] {} points per scan",
+                    start_time.elapsed().as_secs(),
+                    scan.len()
+                );
 
                 /*
                  for scan_point in scan {
