@@ -21,7 +21,7 @@ fn sensors() -> String {
 fn manual_control(
     pitch_control: &StepMotorController,
     yaw_control: &StepMotorController,
-    //distance_sensor: &mut DistanceSensor,
+    distance_sensor: &mut DistanceSensor,
 ) {
     use std::io;
     use std::io::Write;
@@ -55,7 +55,7 @@ fn manual_control(
                 break;
             }
             ["measure" | "m"] => {
-                let measurement = make_measurement(pitch_control, yaw_control);
+                let measurement = make_measurement(pitch_control, yaw_control, distance_sensor);
                 println!("measurement: {:?}", measurement);
             }
             _ => {
@@ -70,31 +70,29 @@ fn manual_control(
 fn make_measurement(
     pitch_control: &StepMotorController,
     yaw_control: &StepMotorController,
-    //distance_sensor: &mut DistanceSensor,
+    distance_sensor: &mut DistanceSensor,
 ) -> (i32, i32, i32, i32) {
     use std::sync::atomic::Ordering;
     let pitch_control: i32 = pitch_control.tgt_pos.load(Ordering::Relaxed);
     let yaw_control: i32 = yaw_control.tgt_pos.load(Ordering::Relaxed);
 
-    //let mut distance = distance_sensor.read_distance_fast();
+    let mut distance = distance_sensor.read_distance_fast();
     //let mut distance = distance_sensor.read_distance();
 
     let mut retry_count = 3;
-    /* 
     while distance.is_err() {
         retry_count -= 1;
         if retry_count == 0 {
             return (pitch_control, yaw_control, 0, -1);
         }
-        //distance = distance_sensor.read_distance();
+        distance = distance_sensor.read_distance();
         println!("error reading distance");
-    } 
+    }
     let data = distance.unwrap();
     let distance = data.0 as i32;
     let quality = data.1 as i32;
-    */
-    //(pitch_control, yaw_control, distance, quality)
-    (0, 0, 0, 0)
+
+    (pitch_control, yaw_control, distance, quality)
 }
 
 const YAW_RANGE: Range<i32> = -2000..2000;
@@ -103,7 +101,7 @@ const PITCH_RANGE: Range<i32> = -1800..1000;
 fn start_scan(
     pitch_control: &StepMotorController,
     yaw_control: &StepMotorController,
-    //distance_sensor: &mut DistanceSensor,
+    distance_sensor: &mut DistanceSensor,
 ) {
     for yaw in YAW_RANGE.step_by(20) {
         yaw_control.set_pos(yaw);
@@ -112,7 +110,7 @@ fn start_scan(
             pitch_control.set_pos(pitch);
             pitch_control.wait_stop();
 
-            let m = make_measurement(pitch_control, yaw_control);
+            let m = make_measurement(pitch_control, yaw_control, distance_sensor);
             println!(
                 "{{ \"pitch\": {}, \"yaw\": {}, \"distance_mm\": {}, \"quality\": {}}},",
                 m.0, m.1, m.2, m.3
@@ -139,8 +137,8 @@ fn main() {
 
     let pitch_control = StepMotorController::new(pitch_motor, 3);
     let yaw_control = StepMotorController::new(yaw_motor, 3);
-    //let mut distance_sensor = DistanceSensor::new();
-    //distance_sensor.start().unwrap();
-    manual_control(&pitch_control, &yaw_control);
-    start_scan(&pitch_control, &yaw_control);
+    let mut distance_sensor = DistanceSensor::new();
+    distance_sensor.start().unwrap();
+    manual_control(&pitch_control, &yaw_control, &mut distance_sensor);
+    start_scan(&pitch_control, &yaw_control, &mut distance_sensor);
 }
