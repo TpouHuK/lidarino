@@ -1,5 +1,12 @@
-//! Module for managing a 4-phase unipolar stepper motor.
-//! Right now uses [`VirtualPin`] for managing coils, because we are using mcp23s17.
+//! Managing 4-phase unipolar stepper motor.
+//! # Example
+//! ```
+//! let motor = StepMotor::new(pins);
+//! let step_delay_ms: u32 = 5;
+//! let controller = StepMotorController::new(motor, step_delay_ms);
+//!
+//! controller.set_pos(100);
+//! ```
 
 use crate::mcp23s17::*;
 use std::sync::atomic::{AtomicBool, AtomicI32, AtomicU32, Ordering};

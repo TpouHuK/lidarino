@@ -21,6 +21,6 @@ fn main() {
         let pin_num: u8 = cmd[0..1].parse().unwrap();
         let pin_value: bool = &cmd[1..2] == "t";
 
-        c.get_pin(pin_num).set_level(pin_value);
+        c.output_pin(pin_num).set_level(pin_value);
     }
 }

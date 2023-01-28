@@ -1,14 +1,18 @@
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Arc;
-use std::thread;
+//! MPU9250 with rotation tracking.
+
 use std::time::Duration;
+// use std::sync::atomic::{AtomicBool, Ordering};
+// use std::sync::Arc;
+// use std::thread;
 
 use ahrs::{Ahrs, Madgwick};
 use linux_embedded_hal::{Delay, I2cdev};
 use mpu9250::*;
+use nalgebra::base::Vector3;
 
 const I2C_ADDR: &str = "/dev/i2c-1";
 
+/// MPU9250 with rotation tracking.
 pub struct Mpu {
     mpu9250: Mpu9250<I2cDevice<I2cdev>, mpu9250::Marg>,
     gyro_bias: [f32; 3],
@@ -16,9 +20,10 @@ pub struct Mpu {
     sample_period: Duration,
 }
 
-use nalgebra::base::Vector3;
 
 impl Mpu {
+
+    /// Create new MPU9250.
     pub fn new(sample_period: Duration) -> Self {
         let i2c = I2cdev::new(I2C_ADDR).unwrap();
         let mpu9250 = Mpu9250::marg_default(i2c, &mut Delay).expect("unable to make MPU9250");
@@ -75,6 +80,7 @@ impl Mpu {
 
         // TODO use magnetometer for god's sake
         //self.madgwick.update(&all.gyro, &all.accel, &all.mag)
+
         let mut gyro = all.gyro;
         for i in 0..3 {
             gyro[i] += self.gyro_bias[i];

@@ -1,3 +1,20 @@
+//! HI50 laser measurement sensor.
+//!
+//! # Example
+//! ```
+//! let sensor = DistanceSensor::new();
+//! let controller = DistanceController::new(sensor);
+//!
+//! // Request and wait for measurement, blocks thread
+//! let measurement = controller.get_measurement();
+//!
+//! // Or...
+//! controller.request_measurement();
+//! // ... do some stuff ...
+//! controller.wait_until_done();
+//! let measurement = controller.get_last_measurement();
+//!
+//! ```
 use mio_serial::*;
 use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 use std::sync::Condvar;
@@ -5,11 +22,18 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::Duration;
 
+/// Request status of DistanceController
+/// Used to request distance readings and wait on them.
 type Status = Arc<(Mutex<bool>, Condvar)>;
+
+/// Result of measuring distance with DistanceSensor.
 type DistanceReading = Arc<(AtomicU32, AtomicU32)>;
 
+// struct DistanceReading // TODO as a separate type
+
+/// Separate thread control loop for [`DistanceController`]
 fn distance_sensor_control_loop(
-    /*distance_sensor: DistanceSensor, */ status: Status,
+    mut distance_sensor: DistanceSensor, status: Status,
     distance_reading: DistanceReading,
     kill_switch: Arc<AtomicBool>,
 ) {
@@ -23,8 +47,8 @@ fn distance_sensor_control_loop(
         }
         if !*is_done {
             drop(is_done);
-            //let distance = distance_sensor.read_distance()
-            let reading = (42u32, 00u32);
+            let reading = distance_sensor.read_distance().unwrap(); // TODO FIX UNWRAP ADD RETRIES
+            //let reading = (42u32, 00u32);
             thread::sleep(Duration::from_secs(3));
 
             let (dist, qual) = &*distance_reading;
@@ -40,16 +64,18 @@ fn distance_sensor_control_loop(
     cvar.notify_all();
 }
 
+/// Controller for HI50 distance measurement sensor.
 pub struct DistanceController {
-    pub status: Status,
-    pub distance_reading: DistanceReading,
+    status: Status,
+    distance_reading: DistanceReading,
 
     thread_handle: Option<thread::JoinHandle<()>>,
     kill_switch: Arc<AtomicBool>,
 }
 
 impl DistanceController {
-    pub fn new(/*distance_sensor: DistanceSensor*/) -> Self {
+    /// Create new [`DistanceController`] for `distance_sensor`
+    pub fn new(distance_sensor: DistanceSensor) -> Self {
         let distance_reading = Arc::new((AtomicU32::new(0), AtomicU32::new(0)));
         let status = Arc::new((Mutex::new(true), Condvar::new()));
         let kill_switch = Arc::new(AtomicBool::new(false));
@@ -59,7 +85,7 @@ impl DistanceController {
         let kill_switch_clone = kill_switch.clone();
 
         let thread_handle = thread::spawn(move || {
-            distance_sensor_control_loop(status_clone, distance_reading_clone, kill_switch_clone)
+            distance_sensor_control_loop(distance_sensor, status_clone, distance_reading_clone, kill_switch_clone)
         });
         DistanceController {
             status,
@@ -69,6 +95,8 @@ impl DistanceController {
         }
     }
 
+    /// Blocks thread untill current measurement request is complete
+    /// Instantly returns if theres no request pending.
     pub fn wait_until_done(&self) {
         let (lock, cvar) = &*self.status;
         let mut is_done = lock.lock().unwrap();
@@ -77,6 +105,7 @@ impl DistanceController {
         }
     }
 
+    /// Non-blocking request to measure distance.
     pub fn request_measurement(&self) {
         let (lock, cvar) = &*self.status;
         let mut is_done = lock.lock().unwrap();
@@ -84,6 +113,7 @@ impl DistanceController {
         cvar.notify_all();
     }
 
+    /// Blocking request for measurement. Returns result of measurement
     pub fn get_measurement(&self) -> (u32, u32) {
         self.request_measurement();
         self.wait_until_done();
@@ -94,6 +124,7 @@ impl DistanceController {
         )
     }
 
+    /// Non-blocking get of last measurement.
     pub fn get_last_measurement(&self) -> (u32, u32) {
         let (distance, quality) = &*self.distance_reading;
         (
@@ -104,7 +135,7 @@ impl DistanceController {
 }
 
 impl Drop for DistanceController {
-    /// Never used yet as DistanceController is static
+    // Never used (yet) as DistanceController is static
     fn drop(&mut self) {
         self.kill_switch.store(true, Ordering::Relaxed);
         self.status.1.notify_all();
@@ -114,11 +145,19 @@ impl Drop for DistanceController {
     }
 }
 
+/// HI50 Distance sensor.
 pub struct DistanceSensor {
     tty_port: Box<dyn SerialPort>,
 }
 
+impl Default for DistanceSensor {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl DistanceSensor {
+    /// Create new HI50 Distance sensor with hardcoded values.
     pub fn new() -> Self {
         let tty_port = mio_serial::new("/dev/ttyS0", 19200)
             .timeout(Duration::from_millis(3500))
@@ -128,6 +167,7 @@ impl DistanceSensor {
         DistanceSensor { tty_port }
     }
 
+    /// Enable laser. Sends `b"O"` on serial.
     pub fn start(&mut self) -> Result<()> {
         self.tty_port.write_all(b"O").expect("enabled laser");
         self.tty_port.flush().expect("enabled laser");
@@ -137,6 +177,7 @@ impl DistanceSensor {
         Ok(())
     }
 
+    /// Make "slow" measurement. Sends `b"D"` on serial.
     pub fn read_distance(&mut self) -> Result<(u32, u32)> {
         self.tty_port.write_all(b"D").expect("enabled laser");
         self.tty_port.flush().expect("enabled laser");
@@ -156,6 +197,7 @@ impl DistanceSensor {
         Ok((number, q_number))
     }
 
+    /// Make "fast" measurement. Sends `b"F"` on serial.
     pub fn read_distance_fast(&mut self) -> Result<(u32, u32)> {
         self.tty_port.write_all(b"F").expect("enabled laser");
         self.tty_port.flush().expect("enabled laser");
@@ -175,6 +217,7 @@ impl DistanceSensor {
         Ok((number, q_number))
     }
 
+    /// Close laser. Sends `b"C"` on serial.
     pub fn stop(&mut self) -> Result<()> {
         self.tty_port.write_all(b"C").expect("enabled laser");
         self.tty_port.flush().expect("enabled laser");
