@@ -1,3 +1,3 @@
+- [ ] Fix empty `loop` and wasted CPU cycles in motor::MotorController, once motors are proven to be working.
 - [ ] Add choice between reading modes for `DistanceController`
-
 - [ ] Add ability to create scans

@@ -20,14 +20,14 @@ lazy_static! {
 } */
 
 lazy_static! {
-    static ref YAW_CONTROLLER: DummyController = {
-        DummyController::new()
+    static ref YAW_CONTROLLER: ControllerMock = {
+        ControllerMock::new()
     };
 }
 
 lazy_static! {
-    static ref PITCH_CONTROLLER: DummyController = {
-        DummyController::new()
+    static ref PITCH_CONTROLLER: ControllerMock = {
+        ControllerMock::new()
     };
 }
 
