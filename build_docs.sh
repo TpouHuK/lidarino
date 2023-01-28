@@ -2,7 +2,7 @@
 
 # Compile docs the way i like it =)
 # Add `--open` flag for opening the docs in browser.
-cargo doc --no_deps --document-private-items $@
+cargo doc --no-deps --document-private-items $@
 
 # To build docs and open them in browser, without dependencies:
 # `cargo doc --open --no-deps --document-private-items`
