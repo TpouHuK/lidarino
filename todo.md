@@ -15,3 +15,4 @@
 
 # LowPriority
 - [ ] Mcp23s17 controller drop.
+- [ ] Mocking hardware

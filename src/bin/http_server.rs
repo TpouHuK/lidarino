@@ -9,8 +9,6 @@ extern crate lazy_static;
 use lidarino::distance::*;
 use lidarino::motor::*;
 
-const MOTOR_DELAY: u32 = 4;
-
 /*
 lazy_static! {
     static ref YAW_CONTROLLER: StepMotorController = {
@@ -20,18 +18,17 @@ lazy_static! {
 } */
 
 lazy_static! {
-    static ref YAW_CONTROLLER: ControllerMock = { ControllerMock::new() };
+    static ref YAW_CONTROLLER: ControllerMock = ControllerMock::new();
 }
 
 lazy_static! {
-    static ref PITCH_CONTROLLER: ControllerMock = { ControllerMock::new() };
+    static ref PITCH_CONTROLLER: ControllerMock =  ControllerMock::new();
 }
 
 lazy_static! {
     static ref DISTANCE_CONTROLLER: DistanceController = {
-        //let distance_sensor = DistanceSensor::new();
-        //DistanceController::new(distance_sensor);
-        DistanceController::new()
+        let distance_sensor = DistanceSensor::new();
+        DistanceController::new(distance_sensor)
     };
 }
 
@@ -64,17 +61,6 @@ fn send_current_state() -> warp::reply::Json {
         "prev_quality": quality,
     });
 
-    warp::reply::json(&reply)
-}
-
-struct ScanRequest {}
-
-fn reqest_scan(request: ScanRequest) -> warp::reply::Json {
-    let scan_id = 0;
-    let reply = json!({
-        "status": "Ok",
-        "scan_id": scan_id,
-    });
     warp::reply::json(&reply)
 }
 
