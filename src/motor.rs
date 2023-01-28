@@ -2,8 +2,6 @@ use std::time::Duration;
 use std::thread;
 use std::sync::atomic::{AtomicU32, AtomicI32, AtomicBool, Ordering};
 use std::sync::Arc;
-
-use rppal::gpio::{Gpio, OutputPin};
 use crate::mcp23s17::*;
 
 #[derive(Clone, Copy, Debug)]
@@ -211,6 +209,12 @@ pub struct DummyController {
     pub tgt_pos: Arc<AtomicI32>,
     pub step_delay_ms: Arc<AtomicU32>,
 }
+
+
+impl Default for DummyController {
+    fn default() -> Self { Self::new() }
+}
+
 impl DummyController {
     pub fn new() -> Self {
         let cur_pos = Arc::new(AtomicI32::new(0));
