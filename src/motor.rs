@@ -25,6 +25,71 @@ enum MotorPhase {
     OnStep(i8),
 }
 
+impl MotorPhase {
+    fn phase_num_or_0(&self) -> usize {
+        match self {
+            MotorPhase::Unknown => { 0 }
+            MotorPhase::OnStep(phase) => { *phase as usize }
+        }
+    }
+
+    fn fullstep_pins(&self) -> &'static [bool; 4] {
+        const FULLSTEP_PINS: [[bool; 4]; 8] = [
+            [true, true, false, false], // 0 0 
+            [true, true, false, false], // 0 1
+            [false, true, true, false], // 2 2 
+            [false, true, true, false], // 2 3
+            [false, false, true, true], // 4 4
+            [false, false, true, true], // 4 5
+            [true, false, false, true], // 6 6
+            [true, false, false, true], // 6 7
+        ];
+        &FULLSTEP_PINS[self.phase_num_or_0()]
+    }
+
+    fn halfstep_pins(&self) -> &'static [bool; 4] {
+        const HALFSTEP_PINS: [[bool; 4]; 8] = [
+            [true, true, false, false],  // 0
+            [false, true, false, false], // 1
+            [false, true, true, false],  // 2
+            [false, false, true, false], // 3
+            [false, false, true, true],  // 4
+            [false, false, false, true], // 5
+            [true, false, false, true],  // 6
+            [true, false, false, false], // 7
+        ];
+        &HALFSTEP_PINS[self.phase_num_or_0()]
+    }
+
+    fn next_fullstep(&mut self){
+        *self = match self {
+            MotorPhase::Unknown => { MotorPhase::OnStep(0) }
+            MotorPhase::OnStep(step) => { MotorPhase::OnStep((*step + 2).rem_euclid(8)) }
+        }
+    }
+
+    fn prev_fullstep(&mut self){
+        *self = match self {
+            MotorPhase::Unknown => { MotorPhase::OnStep(0) }
+            MotorPhase::OnStep(step) => { MotorPhase::OnStep((*step - 2).rem_euclid(8)) }
+        }
+    }
+
+    fn init_phase(&mut self) {
+        *self = MotorPhase::OnStep(0);
+    }
+
+    /// Unimplemented
+    fn next_halfstep(&mut self) {
+        unimplemented!();
+    }
+
+    /// Unimplemented
+    fn prev_halfstep(&mut self) {
+        unimplemented!();
+    }
+}
+
 /// Physical step motor.
 pub struct StepMotor<T: OutputPin> {
     /// Current phase of a motor
@@ -54,88 +119,44 @@ impl<T: OutputPin> StepMotor<T> {
         }
     }
 
+    fn set_pins(&mut self, levels: &[bool; 4]) {
+        for (level, pin) in levels.iter().zip(self.pins.iter_mut()) {
+            pin.write(*level);
+        }
+    }
+
     /// Make stepper motor go a single full-step phase in chosen direction.
     pub fn full_step(&mut self, dir: StepDirection) {
-        match self.state {
-            MotorPhase::Unknown => {
-                self.state = MotorPhase::OnStep(0);
-                self.pins[0].set_high();
-                self.pins[1].set_high();
-                self.coils_powered = true;
-            }
-
-            MotorPhase::OnStep(step) => {
-                let full_steps = [
-                    [true, true, false, false], // 0
-                    [true, true, false, false], // 0
-                    [false, true, true, false], // 1
-                    [false, true, true, false], // 1
-                    [false, false, true, true], // 2
-                    [false, false, true, true], // 2
-                    [true, false, false, true], // 3
-                    [true, false, false, true], // 3
-                ];
-                let new_step = (step + (dir as i8) * 2).rem_euclid(8);
-                self.state = MotorPhase::OnStep(new_step);
-                for i in 0..4 {
-                    if full_steps[new_step as usize][i] {
-                        self.pins[i].set_high();
-                    } else {
-                        self.pins[i].set_low();
-                    }
-                }
-                self.coils_powered = true;
-            }
+        match dir {
+            StepDirection::Forward => { self.state.next_fullstep(); }
+            StepDirection::Backward => { self.state.prev_fullstep(); }
+            StepDirection::Nothing => { self.state.init_phase(); }
         }
+        self.set_pins(self.state.fullstep_pins());
+        self.coils_powered = true;
     }
 
     /// Make stepper motor go a single half-step phase in chosen direction.
     pub fn half_step(&mut self, dir: StepDirection) {
-        match self.state {
-            MotorPhase::Unknown => {
-                self.state = MotorPhase::OnStep(0);
-                self.pins[0].set_high();
-                self.pins[1].set_high();
-                self.coils_powered = true;
-            }
-
-            MotorPhase::OnStep(step) => {
-                let half_steps = [
-                    [true, true, false, false],  // 0
-                    [false, true, false, false], // 0
-                    [false, true, true, false],  // 1
-                    [false, false, true, false], // 1
-                    [false, false, true, true],  // 2
-                    [false, false, false, true], // 2
-                    [true, false, false, true],  // 3
-                    [true, false, false, false], // 3
-                ];
-                let new_step = (step + (dir as i8) * 2).rem_euclid(8);
-                self.state = MotorPhase::OnStep(new_step);
-                for i in 0..4 {
-                    if half_steps[new_step as usize][i] {
-                        self.pins[i].set_high();
-                    } else {
-                        self.pins[i].set_low();
-                    }
-                }
-                self.coils_powered = true;
-            }
+        match dir {
+            StepDirection::Forward => { self.state.next_halfstep(); }
+            StepDirection::Backward => { self.state.prev_halfstep(); }
+            StepDirection::Nothing => { self.state.init_phase(); }
         }
+        self.set_pins(self.state.halfstep_pins());
+        self.coils_powered = true;
     }
 
     /// Disables all the coils on the motor
     pub fn disable_power(&mut self) {
         self.coils_powered = false;
-        for i in 0..4 {
-            self.pins[i].set_low();
-        }
+        self.set_pins(&[false, false, false, false])
     }
 
     /// Enables coils according to last used [`MotorPhase`]
     pub fn enable_power(&mut self) {
         self.coils_powered = true;
-        self.full_step(StepDirection::Nothing);
+        self.set_pins(self.state.fullstep_pins());
     }
 }
 
