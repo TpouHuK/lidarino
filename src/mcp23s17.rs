@@ -5,14 +5,14 @@ use std::sync::mpsc::{self, Receiver, Sender};
 use std::thread;
 
 pub trait OutputPin {
-    fn write(&mut self, level: Level);
+    fn write<T: Into<Level>>(&mut self, level: T);
     fn set_low(&mut self);
     fn set_high(&mut self);
 }
 
 impl OutputPin for rppal::gpio::OutputPin {
-    fn write(&mut self, level: Level) {
-        rppal::gpio::OutputPin::write(self, level)
+    fn write<T: Into<Level>>(&mut self, level: T) {
+        rppal::gpio::OutputPin::write(self, level.into())
     }
     fn set_low(&mut self) {
         rppal::gpio::OutputPin::set_low(self)
@@ -31,11 +31,11 @@ impl OutputPin for VirtualPin {
         self.write(Level::Low);
     }
 
-    fn write(&mut self, level: Level) {
+    fn write<T: Into<Level>>(&mut self, level: T) {
         self.pin_req_tx
             .send(PinChangeRequest {
                 pin_num: self.pin_num,
-                high: (level == Level::High),
+                high: (level.into() == Level::High),
             })
             .expect("controller alive");
     }
