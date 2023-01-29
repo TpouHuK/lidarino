@@ -28,16 +28,16 @@ enum MotorPhase {
 impl MotorPhase {
     fn phase_num_or_0(&self) -> usize {
         match self {
-            MotorPhase::Unknown => { 0 }
-            MotorPhase::OnStep(phase) => { *phase as usize }
+            MotorPhase::Unknown => 0,
+            MotorPhase::OnStep(phase) => *phase as usize,
         }
     }
 
     fn fullstep_pins(&self) -> &'static [bool; 4] {
         const FULLSTEP_PINS: [[bool; 4]; 8] = [
-            [true, true, false, false], // 0 0 
+            [true, true, false, false], // 0 0
             [true, true, false, false], // 0 1
-            [false, true, true, false], // 2 2 
+            [false, true, true, false], // 2 2
             [false, true, true, false], // 2 3
             [false, false, true, true], // 4 4
             [false, false, true, true], // 4 5
@@ -61,17 +61,17 @@ impl MotorPhase {
         &HALFSTEP_PINS[self.phase_num_or_0()]
     }
 
-    fn next_fullstep(&mut self){
+    fn next_fullstep(&mut self) {
         *self = match self {
-            MotorPhase::Unknown => { MotorPhase::OnStep(0) }
-            MotorPhase::OnStep(step) => { MotorPhase::OnStep((*step + 2).rem_euclid(8)) }
+            MotorPhase::Unknown => MotorPhase::OnStep(0),
+            MotorPhase::OnStep(step) => MotorPhase::OnStep((*step + 2).rem_euclid(8)),
         }
     }
 
-    fn prev_fullstep(&mut self){
+    fn prev_fullstep(&mut self) {
         *self = match self {
-            MotorPhase::Unknown => { MotorPhase::OnStep(0) }
-            MotorPhase::OnStep(step) => { MotorPhase::OnStep((*step - 2).rem_euclid(8)) }
+            MotorPhase::Unknown => MotorPhase::OnStep(0),
+            MotorPhase::OnStep(step) => MotorPhase::OnStep((*step - 2).rem_euclid(8)),
         }
     }
 
@@ -128,9 +128,15 @@ impl<T: OutputPin> StepMotor<T> {
     /// Make stepper motor go a single full-step phase in chosen direction.
     pub fn full_step(&mut self, dir: StepDirection) {
         match dir {
-            StepDirection::Forward => { self.state.next_fullstep(); }
-            StepDirection::Backward => { self.state.prev_fullstep(); }
-            StepDirection::Nothing => { self.state.init_phase(); }
+            StepDirection::Forward => {
+                self.state.next_fullstep();
+            }
+            StepDirection::Backward => {
+                self.state.prev_fullstep();
+            }
+            StepDirection::Nothing => {
+                self.state.init_phase();
+            }
         }
         self.set_pins(self.state.fullstep_pins());
         self.coils_powered = true;
@@ -139,9 +145,15 @@ impl<T: OutputPin> StepMotor<T> {
     /// Make stepper motor go a single half-step phase in chosen direction.
     pub fn half_step(&mut self, dir: StepDirection) {
         match dir {
-            StepDirection::Forward => { self.state.next_halfstep(); }
-            StepDirection::Backward => { self.state.prev_halfstep(); }
-            StepDirection::Nothing => { self.state.init_phase(); }
+            StepDirection::Forward => {
+                self.state.next_halfstep();
+            }
+            StepDirection::Backward => {
+                self.state.prev_halfstep();
+            }
+            StepDirection::Nothing => {
+                self.state.init_phase();
+            }
         }
         self.set_pins(self.state.halfstep_pins());
         self.coils_powered = true;
@@ -314,7 +326,7 @@ impl StepMotorController {
     }
 
     /// Set desired/target position of a step motor.
-    #[deprecated(note="Use set_target_pos instead.")]
+    #[deprecated(note = "Use set_target_pos instead.")]
     pub fn set_pos(&self, pos: i32) {
         self.shared.set_target_pos(pos);
     }
