@@ -19,7 +19,8 @@ type DistanceReading = Arc<(AtomicU32, AtomicU32)>;
 
 /// Separate thread control loop for [`DistanceController`]
 fn distance_sensor_control_loop(
-    mut distance_sensor: DistanceSensor, status: Status,
+    mut distance_sensor: DistanceSensor,
+    status: Status,
     distance_reading: DistanceReading,
     kill_switch: Arc<AtomicBool>,
 ) {
@@ -34,7 +35,7 @@ fn distance_sensor_control_loop(
         if !*is_done {
             drop(is_done);
             let reading = distance_sensor.read_distance().unwrap(); // TODO FIX UNWRAP ADD RETRIES
-            //let reading = (42u32, 00u32);
+                                                                    //let reading = (42u32, 00u32);
             thread::sleep(Duration::from_secs(3));
 
             let (dist, qual) = &*distance_reading;
@@ -71,7 +72,12 @@ impl DistanceController {
         let kill_switch_clone = kill_switch.clone();
 
         let thread_handle = thread::spawn(move || {
-            distance_sensor_control_loop(distance_sensor, status_clone, distance_reading_clone, kill_switch_clone)
+            distance_sensor_control_loop(
+                distance_sensor,
+                status_clone,
+                distance_reading_clone,
+                kill_switch_clone,
+            )
         });
         DistanceController {
             status,
@@ -143,7 +149,7 @@ impl Default for DistanceSensor {
 impl DistanceSensor {
     /// Create new HI50 Distance sensor with hardcoded values.
     pub fn new() -> Self {
-        Self{}
+        Self {}
     }
 
     /// Enable laser. Sends `b"O"` on serial.

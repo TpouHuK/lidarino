@@ -1,16 +1,15 @@
 //! MCP23S17 pin multiplexer.
-use rppal_mcp23s17::{ ChipSelect, HardwareAddress, Mcp23s17, SpiBus, SpiMode };
+use rppal_mcp23s17::{ChipSelect, HardwareAddress, Mcp23s17, SpiBus, SpiMode};
 use std::sync::mpsc::{self, Receiver, Sender};
 use std::thread;
 
 #[derive(Debug, Clone)]
 
-/// Thread-safe MCP23S17 pin. 
+/// Thread-safe MCP23S17 pin.
 pub struct VirtualPin {
     pin_num: u8,
     pin_req_tx: Sender<PinChangeRequest>,
 }
-
 
 impl VirtualPin {
     /// Set pin to high.
@@ -59,7 +58,7 @@ fn controller_thread(rx: Receiver<PinChangeRequest>, mcp23s17: Mcp23s17) {
 
     // TODO clean loop exit
     loop {
-        let msg = rx.recv().unwrap(); 
+        let msg = rx.recv().unwrap();
         let pin_num = msg.pin_num as usize;
 
         if msg.high {

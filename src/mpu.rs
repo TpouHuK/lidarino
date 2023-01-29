@@ -20,9 +20,7 @@ pub struct Mpu {
     sample_period: Duration,
 }
 
-
 impl Mpu {
-
     /// Create new MPU9250.
     pub fn new(sample_period: Duration) -> Self {
         let i2c = I2cdev::new(I2C_ADDR).unwrap();

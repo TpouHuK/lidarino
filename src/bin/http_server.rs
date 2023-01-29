@@ -22,7 +22,7 @@ lazy_static! {
 }
 
 lazy_static! {
-    static ref PITCH_CONTROLLER: ControllerMock =  ControllerMock::new();
+    static ref PITCH_CONTROLLER: ControllerMock = ControllerMock::new();
 }
 
 lazy_static! {
