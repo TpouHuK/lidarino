@@ -38,12 +38,12 @@ fn manual_control(
             ["yaw" | "y", angle] => {
                 let angle: i32 = angle.parse().unwrap();
                 println!("setting yaw to {angle}");
-                yaw_control.set_pos(angle);
+                yaw_control.set_target_pos(angle);
             }
             ["pitch" | "p", angle] => {
                 let angle: i32 = angle.parse().unwrap();
                 println!("setting pitch to {angle}");
-                pitch_control.set_pos(angle);
+                pitch_control.set_target_pos(angle);
             }
             ["stop" | "s"] => {
                 println!("stopping motors");
@@ -73,8 +73,8 @@ fn make_measurement(
     distance_sensor: &mut DistanceSensor,
 ) -> (i32, i32, i32, i32) {
     use std::sync::atomic::Ordering;
-    let pitch_control: i32 = pitch_control.tgt_pos.load(Ordering::Relaxed);
-    let yaw_control: i32 = yaw_control.tgt_pos.load(Ordering::Relaxed);
+    let pitch_control: i32 = pitch_control.get_target_pos();
+    let yaw_control: i32 = yaw_control.get_target_pos();
 
     let mut distance = distance_sensor.read_distance_fast();
     //let mut distance = distance_sensor.read_distance();
@@ -104,10 +104,10 @@ fn start_scan(
     distance_sensor: &mut DistanceSensor,
 ) {
     for yaw in YAW_RANGE.step_by(20) {
-        yaw_control.set_pos(yaw);
+        yaw_control.set_target_pos(yaw);
         yaw_control.wait_stop();
         for pitch in PITCH_RANGE.step_by(20) {
-            pitch_control.set_pos(pitch);
+            pitch_control.set_target_pos(pitch);
             pitch_control.wait_stop();
 
             let m = make_measurement(pitch_control, yaw_control, distance_sensor);

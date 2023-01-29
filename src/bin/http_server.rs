@@ -50,8 +50,8 @@ fn measure_distance() -> warp::reply::Json {
 }
 
 fn send_current_state() -> warp::reply::Json {
-    let yaw = YAW_CONTROLLER.get_cur_pos();
-    let pitch = PITCH_CONTROLLER.get_cur_pos();
+    let yaw = YAW_CONTROLLER.get_current_pos();
+    let pitch = PITCH_CONTROLLER.get_current_pos();
     let (distance, quality) = DISTANCE_CONTROLLER.get_last_measurement();
 
     let reply = json!({

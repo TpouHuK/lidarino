@@ -147,6 +147,91 @@ impl<T: OutputPin> Drop for StepMotor<T> {
     }
 }
 
+use std::sync::{Condvar, Mutex};
+
+#[derive(Default, Clone)]
+struct ControllerSharedData {
+    current_pos: Arc<AtomicI32>,
+    target_pos: Arc<AtomicI32>,
+    step_delay_ms: Arc<AtomicU32>,
+    update_status: Arc<(Mutex<bool>, Condvar)>,
+    kill_switch: Arc<AtomicBool>,
+}
+
+impl ControllerSharedData {
+    fn set_step_delay_ms(&self, step_delay_ms: u32) {
+        self.step_delay_ms.store(step_delay_ms, Ordering::Relaxed);
+    }
+
+    fn set_current_pos(&self, current_pos: i32) {
+        self.current_pos.store(current_pos, Ordering::Relaxed);
+        self.notify_update();
+    }
+
+    fn set_target_pos(&self, target_pos: i32) {
+        self.current_pos.store(target_pos, Ordering::Relaxed);
+        self.notify_update();
+    }
+
+    fn get_current_pos(&self) -> i32 {
+        self.current_pos.load(Ordering::Relaxed)
+    }
+
+    fn get_target_pos(&self) -> i32 {
+        self.target_pos.load(Ordering::Relaxed)
+    }
+
+    fn notify_update(&self) {
+        let (lock, cvar) = &*self.update_status;
+        let mut update = lock.lock().unwrap();
+        *update = true;
+        cvar.notify_all();
+    }
+
+    fn notify_noupdate(&self) {
+        let (lock, cvar) = &*self.update_status;
+        let mut update = lock.lock().unwrap();
+        *update = false;
+        cvar.notify_all();
+    }
+
+    fn wait_update(&self) {
+        let (lock, cvar) = &*self.update_status;
+        let mut update = lock.lock().unwrap();
+        while !*update {
+            update = cvar.wait(update).unwrap();
+        }
+        *update = false;
+    }
+
+    fn wait_noupdate(&self) {
+        let (lock, cvar) = &*self.update_status;
+        let mut update = lock.lock().unwrap();
+        while *update {
+            update = cvar.wait(update).unwrap();
+        }
+    }
+
+    fn inc_current_pos(&self, value: i32) {
+        self.current_pos.fetch_add(value, Ordering::Relaxed);
+    }
+
+    fn kill(&self) {
+        self.kill_switch.store(true, Ordering::Relaxed);
+        self.notify_update();
+    }
+
+    fn wait_step_delay(&self) {
+        thread::sleep(Duration::from_millis(
+            self.step_delay_ms.load(Ordering::Relaxed) as u64,
+        ));
+    }
+
+    fn is_killed(&self) -> bool {
+        self.kill_switch.load(Ordering::Relaxed)
+    }
+}
+
 /// Controller for managing stepper motor asynchronously in a separate thread.
 ///
 /// Spawn's a separate thread which reacts to change in atomic variables.
@@ -154,52 +239,37 @@ impl<T: OutputPin> Drop for StepMotor<T> {
 /// to match `cur_pos` with `tgt_pos`, with delay equal to `step_delay_ms` milliseconds between
 /// each step.
 pub struct StepMotorController {
-    /// Current position
-    pub cur_pos: Arc<AtomicI32>,
-    /// Target position
-    pub tgt_pos: Arc<AtomicI32>,
-    /// Delay between each motor step
-    pub step_delay_ms: Arc<AtomicU32>,
-
-    /// Thread handle of a separate thread which manages the motor.
+    shared: ControllerSharedData,
+    /// Thread handle of a control thread which manages the motor.
     thread_handle: Option<thread::JoinHandle<()>>,
-    /// Variable to signal termination of a thread
-    kill_switch: Arc<AtomicBool>,
 }
 
 /// Thread for managing a stepper motor.
-fn control_loop<T: OutputPin>(
-    mut motor: StepMotor<T>,
-    cur_pos: Arc<AtomicI32>,
-    tgt_pos: Arc<AtomicI32>,
-    step_delay_ms: Arc<AtomicU32>,
-    kill_switch: Arc<AtomicBool>,
-) {
-    // TODO: remove CPU consumption on empty cycle
+fn control_loop<T: OutputPin>(mut motor: StepMotor<T>, shared: ControllerSharedData) {
     loop {
-        if kill_switch.load(Ordering::Relaxed) {
+        if shared.is_killed() {
             break;
         }
 
-        let diff = tgt_pos.load(Ordering::Relaxed) - cur_pos.load(Ordering::Relaxed);
-        match diff {
-            1.. => {
-                // Positive integer
+        let diff = shared.get_target_pos() - shared.get_current_pos();
+        match diff.cmp(&0) {
+            // Positive integer, step forward
+            std::cmp::Ordering::Greater => {
                 motor.full_step(StepDirection::Forward);
-                cur_pos.fetch_add(1, Ordering::Relaxed);
-                thread::sleep(Duration::from_millis(
-                    step_delay_ms.load(Ordering::Relaxed) as u64
-                ));
+                shared.inc_current_pos(1);
+                shared.wait_step_delay();
             }
-            i32::MIN..=-1 => {
-                // Negative integer
+            // Negative integer, step backward
+            std::cmp::Ordering::Less => {
                 motor.full_step(StepDirection::Backward);
-                cur_pos.fetch_add(-1, Ordering::Relaxed);
-                thread::sleep(Duration::from_millis(
-                    step_delay_ms.load(Ordering::Relaxed) as u64
-                ));
+                shared.inc_current_pos(-1);
+                shared.wait_step_delay();
             }
-            0 => {} // Zero
+            // Zero, do nothing
+            std::cmp::Ordering::Equal => {
+                shared.notify_noupdate();
+                shared.wait_update()
+            }
         }
     }
 }
@@ -209,86 +279,76 @@ impl StepMotorController {
     /// * `motor`: motor to controll
     /// * `step_delay_ms`: delay in millisecond between each step
     pub fn new<T: OutputPin + Send + 'static>(motor: StepMotor<T>, step_delay_ms: u32) -> Self {
-        let cur_pos = Arc::new(AtomicI32::new(0));
-        let tgt_pos = Arc::new(AtomicI32::new(0));
-        let step_delay_ms: Arc<AtomicU32> = Arc::new(AtomicU32::new(step_delay_ms));
-        let kill_switch = Arc::new(AtomicBool::new(false));
+        let shared_data: ControllerSharedData = Default::default();
+        shared_data.set_step_delay_ms(step_delay_ms);
 
-        let cur_pos_clone = cur_pos.clone();
-        let tgt_pos_clone = tgt_pos.clone();
-        let step_delay_ms_clone = step_delay_ms.clone();
-        let kill_switch_clone = kill_switch.clone();
-        let thread_handle = thread::spawn(move || {
-            control_loop(
-                motor,
-                cur_pos_clone,
-                tgt_pos_clone,
-                step_delay_ms_clone,
-                kill_switch_clone,
-            )
-        });
+        let shared_clone = shared_data.clone();
+        let thread_handle = thread::spawn(move || control_loop(motor, shared_clone));
         let thread_handle = Some(thread_handle);
 
         StepMotorController {
-            cur_pos,
-            tgt_pos,
-            step_delay_ms,
+            shared: shared_data,
             thread_handle,
-            kill_switch,
         }
     }
 
     /// Set desired/target position of a step motor.
+    #[deprecated(note="Use set_target_pos instead.")]
     pub fn set_pos(&self, pos: i32) {
-        self.tgt_pos.store(pos, Ordering::Relaxed);
+        self.shared.set_target_pos(pos);
     }
 
     /// Set current position of a step motor as 0.
     pub fn reset(&self) {
-        self.tgt_pos.store(0, Ordering::Relaxed);
-        self.cur_pos.store(0, Ordering::Relaxed);
+        self.shared.set_target_pos(0);
+        self.shared.set_current_pos(0);
     }
 
     /// Stop motor if it's moving, do nothing otherwise.
-    // Sets target position as current, making difference zero and stopping the motor.
     pub fn stop(&self) {
-        self.tgt_pos
-            .store(self.cur_pos.load(Ordering::Relaxed), Ordering::Relaxed);
+        self.shared.set_target_pos(self.shared.get_current_pos());
     }
 
     /// Set delay between motor steps.
     pub fn set_step_delay_ms(&self, step_delay_ms: u32) {
-        self.step_delay_ms.store(step_delay_ms, Ordering::Relaxed);
+        self.shared.set_step_delay_ms(step_delay_ms);
     }
 
     /// Checks if motor is running or not.
-    // If target positon and current position are matching, then we conclude that motor is not
-    // stepping anywhere.
     pub fn is_stopped(&self) -> bool {
-        self.tgt_pos.load(Ordering::Relaxed) == self.cur_pos.load(Ordering::Relaxed)
+        self.shared.get_current_pos() == self.shared.get_target_pos()
     }
 
     /// Blocks current thread untill motor is finished rotating to target position.
     pub fn wait_stop(&self) {
-        loop {
-            if self.is_stopped() {
-                break;
-            }
-        }
+        self.shared.wait_noupdate();
+    }
+
+    pub fn get_target_pos(&self) -> i32 {
+        self.shared.get_target_pos()
+    }
+
+    pub fn get_current_pos(&self) -> i32 {
+        self.shared.get_current_pos()
+    }
+
+    pub fn set_target_pos(&self, target_pos: i32) {
+        self.shared.set_target_pos(target_pos);
+    }
+
+    pub fn set_current_pos(&self, current_pos: i32) {
+        self.shared.set_current_pos(current_pos);
     }
 
     /// Change target position on `delta_pos` step.
     pub fn move_on(&self, delta_pos: i32) {
-        self.tgt_pos.store(
-            self.cur_pos.load(Ordering::Relaxed) + delta_pos,
-            Ordering::Relaxed,
-        );
+        self.set_target_pos(self.get_target_pos() + delta_pos);
     }
 }
 
 impl Drop for StepMotorController {
     fn drop(&mut self) {
-        self.kill_switch.store(true, Ordering::Relaxed);
+        self.shared.kill();
         if let Some(thread_handle) = self.thread_handle.take() {
             thread_handle.join().expect("Control thread did not panic"); // Maybe fuck it who cares anyway
         }
@@ -320,11 +380,11 @@ impl ControllerMock {
         }
     }
 
-    pub fn get_cur_pos(&self) -> i32 {
+    pub fn get_current_pos(&self) -> i32 {
         self.cur_pos.load(Ordering::Relaxed)
     }
 
-    pub fn get_tgt_pos(&self) -> i32 {
+    pub fn get_target_pos(&self) -> i32 {
         self.cur_pos.load(Ordering::Relaxed)
     }
 
