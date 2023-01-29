@@ -18,7 +18,7 @@ use crate::mcp23s17::*;
 /// Current phase of a stepper motor.
 #[derive(Clone, Copy, Debug)]
 enum MotorPhase {
-    /// May be used as an initial startup state.
+    /// Initial state.
     Unknown,
     /// Full-step phases are represented as even integers,
     /// and half-step as odd integers.
