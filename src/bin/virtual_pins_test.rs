@@ -1,4 +1,5 @@
 use lidarino::mcp23s17::*;
+use rppal::gpio::Level;
 use std::io;
 use std::io::Write;
 
@@ -19,8 +20,7 @@ fn main() {
         let cmd = input_buf.trim();
 
         let pin_num: u8 = cmd[0..1].parse().unwrap();
-        let pin_value: bool = &cmd[1..2] == "t";
-
-        c.output_pin(pin_num).set_level(pin_value);
+        let pin_value: Level = (&cmd[1..2] == "t").into();
+        c.output_pin(pin_num).write(pin_value);
     }
 }

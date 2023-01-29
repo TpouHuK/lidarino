@@ -1,36 +1,51 @@
 //! MCP23S17 pin multiplexer.
+use rppal::gpio::Level;
 use rppal_mcp23s17::{ChipSelect, HardwareAddress, Mcp23s17, SpiBus, SpiMode};
 use std::sync::mpsc::{self, Receiver, Sender};
 use std::thread;
 
-#[derive(Debug, Clone)]
+pub trait OutputPin {
+    fn write(&mut self, level: Level);
+    fn set_low(&mut self);
+    fn set_high(&mut self);
+}
 
+impl OutputPin for rppal::gpio::OutputPin {
+    fn write(&mut self, level: Level) {
+        rppal::gpio::OutputPin::write(self, level)
+    }
+    fn set_low(&mut self) {
+        rppal::gpio::OutputPin::set_low(self)
+    }
+    fn set_high(&mut self) {
+        rppal::gpio::OutputPin::set_high(self)
+    }
+}
+
+impl OutputPin for VirtualPin {
+    fn set_high(&mut self) {
+        self.write(Level::High);
+    }
+
+    fn set_low(&mut self) {
+        self.write(Level::Low);
+    }
+
+    fn write(&mut self, level: Level) {
+        self.pin_req_tx
+            .send(PinChangeRequest {
+                pin_num: self.pin_num,
+                high: (level == Level::High),
+            })
+            .expect("controller alive");
+    }
+}
+
+#[derive(Debug, Clone)]
 /// Thread-safe MCP23S17 pin.
 pub struct VirtualPin {
     pin_num: u8,
     pin_req_tx: Sender<PinChangeRequest>,
-}
-
-impl VirtualPin {
-    /// Set pin to high.
-    pub fn set_high(&self) {
-        self.set_level(true);
-    }
-
-    /// Set pin to low.
-    pub fn set_low(&self) {
-        self.set_level(false);
-    }
-
-    /// Set pin to high if `high: bool`, set pin to low otherwise.
-    pub fn set_level(&self, high: bool) {
-        self.pin_req_tx
-            .send(PinChangeRequest {
-                pin_num: self.pin_num,
-                high,
-            })
-            .expect("controller alive");
-    }
 }
 
 /// MCP23S17 controller with ability to get thread-safe [`VirtualPin`].

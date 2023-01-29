@@ -8,11 +8,12 @@
 //! controller.set_pos(100);
 //! ```
 
-use crate::mcp23s17::*;
 use std::sync::atomic::{AtomicBool, AtomicI32, AtomicU32, Ordering};
 use std::sync::Arc;
 use std::thread;
 use std::time::Duration;
+
+use crate::mcp23s17::*;
 
 /// Current phase of a stepper motor.
 #[derive(Clone, Copy, Debug)]
@@ -25,13 +26,13 @@ enum MotorPhase {
 }
 
 /// Physical step motor.
-pub struct StepMotor {
+pub struct StepMotor<T: OutputPin> {
     /// Current phase of a motor
     state: MotorPhase,
     /// `true` if pins are high according to current [`MotorPhase`], `false` otherwise.
     coils_powered: bool,
     /// Pins for controlling motor coils.
-    pins: [VirtualPin; 4],
+    pins: [T; 4],
 }
 
 /// Motor phase shift direction.
@@ -42,10 +43,10 @@ pub enum StepDirection {
     Backward = -1,
 }
 
-impl StepMotor {
+impl<T: OutputPin> StepMotor<T> {
     /// Create a new stepper motor.
     /// * `pins` - pins for controlling state of motor coils (in the correct order).
-    pub fn new(pins: [VirtualPin; 4]) -> StepMotor {
+    pub fn new(pins: [T; 4]) -> StepMotor<T> {
         StepMotor {
             state: MotorPhase::Unknown,
             coils_powered: false,
@@ -138,7 +139,7 @@ impl StepMotor {
     }
 }
 
-impl Drop for StepMotor {
+impl<T: OutputPin> Drop for StepMotor<T> {
     fn drop(&mut self) {
         for i in 0..4 {
             self.pins[i].set_low();
@@ -167,8 +168,8 @@ pub struct StepMotorController {
 }
 
 /// Thread for managing a stepper motor.
-fn control_loop(
-    mut motor: StepMotor,
+fn control_loop<T: OutputPin>(
+    mut motor: StepMotor<T>,
     cur_pos: Arc<AtomicI32>,
     tgt_pos: Arc<AtomicI32>,
     step_delay_ms: Arc<AtomicU32>,
@@ -207,7 +208,7 @@ impl StepMotorController {
     /// Creates a new [`StepMotorController`].
     /// * `motor`: motor to controll
     /// * `step_delay_ms`: delay in millisecond between each step
-    pub fn new(motor: StepMotor, step_delay_ms: u32) -> Self {
+    pub fn new<T: OutputPin + Send + 'static>(motor: StepMotor<T>, step_delay_ms: u32) -> Self {
         let cur_pos = Arc::new(AtomicI32::new(0));
         let tgt_pos = Arc::new(AtomicI32::new(0));
         let step_delay_ms: Arc<AtomicU32> = Arc::new(AtomicU32::new(step_delay_ms));
