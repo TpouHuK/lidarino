@@ -110,7 +110,9 @@ impl Mcp23s17Controller {
             controller_thread(rx, mcp23s17);
         });
 
-        Self { pin_req_tx: pin_req_tx.into() }
+        Self {
+            pin_req_tx: pin_req_tx.into(),
+        }
     }
 
     /// Returns [`VirtualPin`] for MPC23S7.
