@@ -1,12 +1,19 @@
 #![allow(dead_code, unused_imports)]
+use lidarino::hardware::distance::DistanceReading;
+use lidarino::hardware::{DISTANCE_CONTROLLER, PITCH_CONTROLLER, YAW_CONTROLLER};
 use std::ops::Range;
-use lidarino::hardware::{YAW_CONTROLLER, PITCH_CONTROLLER, DISTANCE_CONTROLLER};
 
 use warp::Filter;
 
 fn sensors() -> String {
-    let (dist, qual) = DISTANCE_CONTROLLER.get_measurement();
-    format!("{{{dist}, {qual}}}")
+    match DISTANCE_CONTROLLER.get_measurement() {
+        DistanceReading::Ok {
+            distance, quality, ..
+        } => {
+            format!("{{{}, {quality}}}", distance.as_mm())
+        }
+        _ => "some error idk".to_string(),
+    }
 }
 
 fn manual_control() {
@@ -58,9 +65,12 @@ fn make_measurement() -> (i32, i32, u32, u32) {
     use std::sync::atomic::Ordering;
     let pitch_control: i32 = PITCH_CONTROLLER.get_target_pos();
     let yaw_control: i32 = YAW_CONTROLLER.get_target_pos();
-    let (distance, quality) = DISTANCE_CONTROLLER.get_measurement();
+    let (distance, quality) = match DISTANCE_CONTROLLER.get_measurement() {
+        DistanceReading::Ok{ distance, quality, ..} => {(distance.as_mm(), quality)},
+        _ => {(0,0)}
+    };
 
-    (pitch_control, yaw_control, distance, quality)
+    (pitch_control, yaw_control, distance, quality as u32)
 }
 
 const YAW_RANGE: Range<i32> = -2000..2000;

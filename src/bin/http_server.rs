@@ -1,7 +1,8 @@
+use lidarino::hardware::distance::DistanceReading;
+use lidarino::hardware::{DISTANCE_CONTROLLER, PITCH_CONTROLLER, YAW_CONTROLLER};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use warp::Filter;
-use lidarino::hardware::{YAW_CONTROLLER, PITCH_CONTROLLER, DISTANCE_CONTROLLER};
 
 fn main() {
     env_logger::init();
@@ -10,11 +11,25 @@ fn main() {
 }
 
 fn measure_distance() -> warp::reply::Json {
-    let (distance, quality) = DISTANCE_CONTROLLER.get_measurement();
-    let reply = json!({
-        "distance_mm": distance,
-        "quality": quality,
-    });
+    let reading = DISTANCE_CONTROLLER.get_measurement();
+    let reply = match reading {
+        DistanceReading::Ok {
+            distance,
+            quality,
+            measuring_time,
+        } => {
+            json!({
+                "distance_mm": distance.as_mm(),
+                "quality": quality,
+                "measuring_time_ms": measuring_time.as_millis(),
+            })
+        }
+        _ => {
+            json!({
+                "err": "some error idk",
+            })
+        }
+    };
 
     warp::reply::json(&reply)
 }
@@ -22,7 +37,14 @@ fn measure_distance() -> warp::reply::Json {
 fn send_current_state() -> warp::reply::Json {
     let yaw = YAW_CONTROLLER.get_current_pos();
     let pitch = PITCH_CONTROLLER.get_current_pos();
-    let (distance, quality) = DISTANCE_CONTROLLER.get_last_measurement();
+
+    let last_measurement = DISTANCE_CONTROLLER.get_last_measurement();
+    let (distance, quality) = match last_measurement {
+        DistanceReading::Ok {
+            distance, quality, ..
+        } => (distance.as_mm(), quality),
+        _ => (0, 0),
+    };
 
     let reply = json!({
         "yaw": yaw,

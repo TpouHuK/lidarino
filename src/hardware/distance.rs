@@ -1,8 +1,7 @@
 //! HI50 laser measurement sensor.
 //!
 //! # Example
-//! ```
-//! let sensor = DistanceSensor::new();
+//! ```//! let sensor = DistanceSensor::new();
 //! let controller = DistanceController::new(sensor);
 //!
 //! // Request and wait for measurement, blocks thread
@@ -15,139 +14,194 @@
 //! let measurement = controller.get_last_measurement();
 //!
 //! ```
+
+use crate::shared::{IsDead, SharedState};
 use mio_serial::*;
-use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
-use std::sync::Condvar;
 use std::sync::{Arc, Mutex};
 use std::thread;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
-/// Request status of DistanceController
-/// Used to request distance readings and wait on them.
-type Status = Arc<(Mutex<bool>, Condvar)>;
+#[derive(PartialEq, Eq, Clone, Copy)]
+pub struct Distance {
+    millimeters: u32,
+}
 
-/// Result of measuring distance with DistanceSensor.
-type DistanceReading = Arc<(AtomicU32, AtomicU32)>;
+impl Distance {
+    pub fn from_mm(millimeters: u32) -> Self {
+        Distance { millimeters }
+    }
 
-// struct DistanceReading // TODO as a separate type
+    pub fn as_mm(&self) -> u32 {
+        self.millimeters
+    }
+}
+
+#[derive(Default, Clone, Copy)]
+pub enum DistanceReading {
+    #[default]
+    NoReading,
+    Ok {
+        distance: Distance,
+        quality: u16,
+        measuring_time: Duration,
+    },
+    Err {
+        error: DistanceReadingError,
+        measuring_time: Duration,
+    },
+}
+
+#[derive(PartialEq, Eq, Clone, Copy)]
+enum ReadingState {
+    Ready,
+    Pending,
+    Dead,
+}
+
+impl IsDead for ReadingState {
+    fn is_dead(&self) -> bool {
+        self == &ReadingState::Dead
+    }
+}
+
+impl Default for ReadingState {
+    fn default() -> Self {
+        ReadingState::Ready
+    }
+}
+
+#[derive(PartialEq, Eq, Clone, Copy)]
+pub enum DistanceReadingError {
+    TODOErrorCodes = 0, // todo rename this into UnknownCode
+    /// VBAT too low, power boltage should >= 2.0V
+    VbatTooLow = 1,
+    /// Internal error, don't care
+    InternalError = 2,
+    /// Module temperature is too low(< -20C)
+    TempTooLow = 3,
+    /// Module temperature is too high(> +40C)
+    TempTooHigh = 4,
+    /// Target out of measure range
+    TargetOutOfMeasureRange = 5,
+    /// Invalid measure result
+    InvalidMeasureResult = 6,
+    /// Background light is too strong
+    BackgroundLightIsTooStrong = 7,
+    /// Laser signal is too weak
+    LaserSignalIsTooWeak = 8,
+    /// Laser signal is too strong
+    LaserSignalIsTooStrong = 9,
+    /// Hardware fault 1
+    HardwareFault1 = 10,
+    /// Hardware fault 2
+    HardwareFault2 = 11,
+    /// Hardware fault 3
+    HardwareFault3 = 12,
+    /// Hardware fault 4
+    HardwareFault4 = 13,
+    /// Hardware fault 5
+    HardwareFault5 = 14,
+    /// Laser signal is not stable
+    LaserSignalIsNotStable = 15,
+    /// Hardware fault 6
+    HardwareFault6 = 16,
+    /// Hardware fault 7
+    HardwareFault7 = 17,
+}
+
+impl DistanceReadingError {
+    pub fn new(code: u16) -> Self {
+        use DistanceReadingError::*;
+        match code {
+            x if x == VbatTooLow as u16 => VbatTooLow,
+            x if x == InternalError as u16 => InternalError,
+            x if x == TempTooLow as u16 => TempTooLow,
+            x if x == TempTooHigh as u16 => TempTooHigh,
+            x if x == TargetOutOfMeasureRange as u16 => TargetOutOfMeasureRange,
+            x if x == InvalidMeasureResult as u16 => InvalidMeasureResult,
+            x if x == BackgroundLightIsTooStrong as u16 => BackgroundLightIsTooStrong,
+            x if x == LaserSignalIsTooWeak as u16 => LaserSignalIsTooWeak,
+            x if x == LaserSignalIsTooStrong as u16 => LaserSignalIsTooStrong,
+            x if x == HardwareFault1 as u16 => HardwareFault1,
+            x if x == HardwareFault2 as u16 => HardwareFault2,
+            x if x == HardwareFault3 as u16 => HardwareFault3,
+            x if x == HardwareFault4 as u16 => HardwareFault4,
+            x if x == HardwareFault5 as u16 => HardwareFault5,
+            x if x == LaserSignalIsNotStable as u16 => LaserSignalIsNotStable,
+            x if x == HardwareFault6 as u16 => HardwareFault6,
+            x if x == HardwareFault7 as u16 => HardwareFault7,
+            _ => TODOErrorCodes, // Todo change to unkown error code
+        }
+    }
+}
 
 /// Separate thread control loop for [`DistanceController`]
 fn distance_sensor_control_loop(
     mut distance_sensor: DistanceSensor,
-    status: Status,
-    distance_reading: DistanceReading,
-    kill_switch: Arc<AtomicBool>,
+    state: Arc<SharedState<ReadingState>>,
+    distance_reading: Arc<Mutex<DistanceReading>>,
 ) {
-    let (lock, cvar) = &*status;
-    let mut is_done = lock.lock().unwrap();
-
     loop {
-        is_done = cvar.wait(is_done).unwrap();
-        if kill_switch.load(Ordering::Relaxed) {
+        state.await_state(ReadingState::Pending);
+
+        if state.get_state().is_dead() {
             break;
         }
-        if !*is_done {
-            drop(is_done);
-            let reading = distance_sensor.read_distance().unwrap(); // TODO FIX UNWRAP ADD RETRIES
-                                                                    //let reading = (42u32, 00u32);
-            thread::sleep(Duration::from_secs(3));
 
-            let (dist, qual) = &*distance_reading;
-            dist.store(reading.0, Ordering::Relaxed);
-            qual.store(reading.1, Ordering::Relaxed);
-
-            is_done = lock.lock().unwrap();
-            *is_done = true;
-            cvar.notify_all();
-        }
+        let mut reading_m = distance_reading.lock().unwrap();
+        *reading_m = distance_sensor.read_distance();
+        state.set_state(ReadingState::Ready);
     }
-    *is_done = true;
-    cvar.notify_all();
 }
 
 /// Controller for HI50 distance measurement sensor.
 pub struct DistanceController {
-    status: Status,
-    distance_reading: DistanceReading,
-
+    state: Arc<SharedState<ReadingState>>,
+    reading: Arc<Mutex<DistanceReading>>,
     thread_handle: Option<thread::JoinHandle<()>>,
-    kill_switch: Arc<AtomicBool>,
 }
 
 impl DistanceController {
     /// Create new [`DistanceController`] for `distance_sensor`
     pub fn new(distance_sensor: DistanceSensor) -> Self {
-        let distance_reading = Arc::new((AtomicU32::new(0), AtomicU32::new(0)));
-        let status = Arc::new((Mutex::new(true), Condvar::new()));
-        let kill_switch = Arc::new(AtomicBool::new(false));
+        let state: Arc<SharedState<ReadingState>> = Default::default();
+        let reading: Arc<Mutex<DistanceReading>> = Default::default();
 
-        let distance_reading_clone = distance_reading.clone();
-        let status_clone = status.clone();
-        let kill_switch_clone = kill_switch.clone();
+        let state_clone = state.clone();
+        let reading_clone = reading.clone();
 
         let thread_handle = thread::spawn(move || {
-            distance_sensor_control_loop(
-                distance_sensor,
-                status_clone,
-                distance_reading_clone,
-                kill_switch_clone,
-            )
+            distance_sensor_control_loop(distance_sensor, state_clone, reading_clone)
         });
+
         DistanceController {
-            status,
-            distance_reading,
+            state,
+            reading,
             thread_handle: Some(thread_handle),
-            kill_switch,
         }
     }
 
     /// Blocks thread untill current measurement request is complete
     /// Instantly returns if theres no request pending.
     pub fn wait_until_done(&self) {
-        let (lock, cvar) = &*self.status;
-        let mut is_done = lock.lock().unwrap();
-        while !*is_done {
-            is_done = cvar.wait(is_done).unwrap();
-        }
+        self.state.await_state(ReadingState::Ready);
     }
 
     /// Non-blocking request to measure distance.
     pub fn request_measurement(&self) {
-        let (lock, cvar) = &*self.status;
-        let mut is_done = lock.lock().unwrap();
-        *is_done = false;
-        cvar.notify_all();
+        self.state.set_state(ReadingState::Pending);
     }
 
     /// Blocking request for measurement. Returns result of measurement
-    pub fn get_measurement(&self) -> (u32, u32) {
+    pub fn get_measurement(&self) -> DistanceReading {
         self.request_measurement();
         self.wait_until_done();
-        let (distance, quality) = &*self.distance_reading;
-        (
-            distance.load(Ordering::Relaxed),
-            quality.load(Ordering::Relaxed),
-        )
+        *self.reading.lock().unwrap()
     }
 
     /// Non-blocking get of last measurement.
-    pub fn get_last_measurement(&self) -> (u32, u32) {
-        let (distance, quality) = &*self.distance_reading;
-        (
-            distance.load(Ordering::Relaxed),
-            quality.load(Ordering::Relaxed),
-        )
-    }
-}
-
-impl Drop for DistanceController {
-    // Never used (yet) as DistanceController is static
-    fn drop(&mut self) {
-        self.kill_switch.store(true, Ordering::Relaxed);
-        self.status.1.notify_all();
-        if let Some(thread_handle) = self.thread_handle.take() {
-            thread_handle.join().expect("Control thread did not panic");
-        }
+    pub fn get_last_measurement(&self) -> DistanceReading {
+        *self.reading.lock().unwrap()
     }
 }
 
@@ -184,43 +238,67 @@ impl DistanceSensor {
     }
 
     /// Make "slow" measurement. Sends `b"D"` on serial.
-    pub fn read_distance(&mut self) -> Result<(u32, u32)> {
+    pub fn read_distance(&mut self) -> DistanceReading {
+        let start = Instant::now();
+
         self.tty_port.write_all(b"D").expect("enabled laser");
         self.tty_port.flush().expect("enabled laser");
 
-        // TODO add error handling
         let mut buf: Vec<u8> = vec![0; 16];
-        self.tty_port.read_exact(&mut buf)?; // TOOD FIX ERROR
-                                             // 'D: 5.614m,1211\r\n'
+
+        if self.tty_port.read_exact(&mut buf).is_err() {
+            return DistanceReading::Err {
+                error: DistanceReadingError::TODOErrorCodes,
+                measuring_time: start.elapsed(),
+            };
+        }
+
+        // 'D: 5.614m,1211\r\n'
         let range = [&buf[3..=3], &buf[5..=7]].concat();
         let string = String::from_utf8(range).unwrap();
         let number: u32 = string.parse().unwrap();
 
         let q_range = &buf[10..=13];
         let q_string = String::from_utf8(q_range.to_vec()).unwrap();
-        let q_number: u32 = q_string.parse().unwrap();
+        let q_number: u16 = q_string.parse().unwrap();
 
-        Ok((number, q_number))
+        DistanceReading::Ok {
+            distance: Distance::from_mm(number),
+            quality: q_number,
+            measuring_time: start.elapsed(),
+        }
     }
 
     /// Make "fast" measurement. Sends `b"F"` on serial.
-    pub fn read_distance_fast(&mut self) -> Result<(u32, u32)> {
+    pub fn read_distance_fast(&mut self) -> DistanceReading {
+        let start = Instant::now();
+
         self.tty_port.write_all(b"F").expect("enabled laser");
         self.tty_port.flush().expect("enabled laser");
 
-        // TODO add error handling
         let mut buf: Vec<u8> = vec![0; 16];
-        self.tty_port.read_exact(&mut buf)?; // TOOD FIX ERROR
-                                             // 'D: 5.614m,1211\r\n'
+
+        if self.tty_port.read_exact(&mut buf).is_err() {
+            return DistanceReading::Err {
+                error: DistanceReadingError::TODOErrorCodes,
+                measuring_time: start.elapsed(),
+            };
+        }
+
+        // 'D: 5.614m,1211\r\n'
         let range = [&buf[3..=3], &buf[5..=7]].concat();
         let string = String::from_utf8(range).unwrap();
         let number: u32 = string.parse().unwrap();
 
         let q_range = &buf[10..=13];
         let q_string = String::from_utf8(q_range.to_vec()).unwrap();
-        let q_number: u32 = q_string.parse().unwrap();
+        let q_number: u16 = q_string.parse().unwrap();
 
-        Ok((number, q_number))
+        DistanceReading::Ok {
+            distance: Distance::from_mm(number),
+            quality: q_number,
+            measuring_time: start.elapsed(),
+        }
     }
 
     /// Close laser. Sends `b"C"` on serial.
