@@ -2,7 +2,7 @@
 #[cfg(not(feature = "mock_hardware"))]
 pub mod distance;
 #[cfg(feature = "mock_hardware")]
-mod distance_mock;
+pub mod distance_mock;
 #[cfg(feature = "mock_hardware")]
 pub use distance_mock as distance;
 
