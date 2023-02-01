@@ -1,4 +1,4 @@
-use lidarino::mpu::*;
+use lidarino::hardware::mpu::*;
 use linux_embedded_hal::{Delay, I2cdev};
 use mpu9250::*;
 use std::thread;

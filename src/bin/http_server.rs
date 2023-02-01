@@ -1,40 +1,10 @@
 use serde::{Deserialize, Serialize};
 use serde_json::json;
-use std::thread;
 use warp::Filter;
-
-#[macro_use]
-extern crate lazy_static;
-
-use lidarino::distance::*;
-use lidarino::motor::*;
-
-/*
-lazy_static! {
-    static ref YAW_CONTROLLER: StepMotorController = {
-        let yaw_motor = StepMotor::new([10, 9, 11, 5]);
-        StepMotorController::new(yaw_motor, MOTOR_DELAY)
-    };
-} */
-
-lazy_static! {
-    static ref YAW_CONTROLLER: ControllerMock = ControllerMock::new();
-}
-
-lazy_static! {
-    static ref PITCH_CONTROLLER: ControllerMock = ControllerMock::new();
-}
-
-lazy_static! {
-    static ref DISTANCE_CONTROLLER: DistanceController = {
-        let distance_sensor = DistanceSensor::new();
-        DistanceController::new(distance_sensor)
-    };
-}
+use lidarino::hardware::{YAW_CONTROLLER, PITCH_CONTROLLER, DISTANCE_CONTROLLER};
 
 fn main() {
     env_logger::init();
-    thread::spawn(|| {});
     start_http();
     unreachable!();
 }
@@ -75,11 +45,11 @@ fn set_position(cmd: SetPosition) -> warp::reply::Json {
     let reply = json!("Ok");
 
     if let Some(yaw) = cmd.yaw {
-        YAW_CONTROLLER.set_pos(yaw);
+        YAW_CONTROLLER.set_target_pos(yaw);
     }
 
     if let Some(pitch) = cmd.pitch {
-        PITCH_CONTROLLER.set_pos(pitch);
+        PITCH_CONTROLLER.set_target_pos(pitch);
     }
 
     warp::reply::json(&reply)

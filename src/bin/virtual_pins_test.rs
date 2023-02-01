@@ -1,4 +1,4 @@
-use lidarino::mcp23s17::*;
+use lidarino::hardware::mcp23s17::*;
 use rppal::gpio::Level;
 use std::io;
 use std::io::Write;

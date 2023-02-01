@@ -13,7 +13,7 @@ use std::sync::Arc;
 use std::thread;
 use std::time::Duration;
 
-use crate::mcp23s17::*;
+use super::mcp23s17::*;
 
 /// Current phase of a stepper motor.
 #[derive(Clone, Copy, Debug)]
@@ -21,7 +21,7 @@ enum MotorPhase {
     /// Initial state.
     Unknown,
     /// Full-step phases are represented as even integers,
-    /// and half-step as odd integers.
+    /// half-step phases as odd integers.
     OnStep(i8),
 }
 
@@ -311,6 +311,11 @@ impl StepMotorController {
     /// Creates a new [`StepMotorController`].
     /// * `motor`: motor to controll
     /// * `step_delay_ms`: delay in millisecond between each step
+    pub fn from_pins<T: OutputPin + Send + 'static>(pins: [T; 4], step_delay_ms: u32) -> Self {
+        let motor = StepMotor::new(pins);
+        Self::new(motor, step_delay_ms)
+    }
+
     pub fn new<T: OutputPin + Send + 'static>(motor: StepMotor<T>, step_delay_ms: u32) -> Self {
         let shared_data: ControllerSharedData = Default::default();
         shared_data.set_step_delay_ms(step_delay_ms);

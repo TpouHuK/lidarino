@@ -2,6 +2,7 @@
 use rppal::gpio::Level;
 use rppal_mcp23s17::{ChipSelect, HardwareAddress, Mcp23s17, SpiBus, SpiMode};
 use std::sync::mpsc::{self, Receiver, Sender};
+use std::sync::Mutex;
 use std::thread;
 
 pub trait OutputPin {
@@ -50,7 +51,7 @@ pub struct VirtualPin {
 
 /// MCP23S17 controller with ability to get thread-safe [`VirtualPin`].
 pub struct Mcp23s17Controller {
-    pin_req_tx: Sender<PinChangeRequest>,
+    pin_req_tx: Mutex<Sender<PinChangeRequest>>,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -109,7 +110,7 @@ impl Mcp23s17Controller {
             controller_thread(rx, mcp23s17);
         });
 
-        Self { pin_req_tx }
+        Self { pin_req_tx: pin_req_tx.into() }
     }
 
     /// Returns [`VirtualPin`] for MPC23S7.
@@ -119,8 +120,12 @@ impl Mcp23s17Controller {
         assert!((0..8).contains(&pin_num));
         VirtualPin {
             pin_num,
-            pin_req_tx: self.pin_req_tx.clone(),
+            pin_req_tx: self.pin_req_tx.lock().unwrap().clone(),
         }
+    }
+
+    pub fn step_motor_pins(&self, pin_numbers: [u8; 4]) -> [VirtualPin; 4] {
+        core::array::from_fn(|i| self.output_pin(pin_numbers[i]))
     }
 }
 
