@@ -42,10 +42,10 @@ fn main() {
             println!("LIDAR is healthy.");
         }
         Health::Warning(error_code) => {
-            println!("LIDAR is unhealthy, warn: {:04X}", error_code);
+            println!("LIDAR is unhealthy, warn: {error_code:04X}");
         }
         Health::Error(error_code) => {
-            println!("LIDAR is unhealthy, error: {:04X}", error_code);
+            println!("LIDAR is unhealthy, error: {error_code:04X}");
         }
     }
 
@@ -69,10 +69,10 @@ fn main() {
         .get_typical_scan_mode()
         .expect("failed to get typical scan mode");
 
-    println!("Typical scan mode: {}", typical_scan_mode);
+    println!("Typical scan mode: {typical_scan_mode}");
 
     match rplidar.check_motor_ctrl_support() {
-        Ok(support) if support == true => {
+        Ok(support) if support => {
             println!("Accessory board is detected and support motor control, starting motor...");
             rplidar.set_motor_pwm(600).expect("failed to start motor");
         }
@@ -118,7 +118,7 @@ fn main() {
                 if let rplidar_drv::Error::OperationTimeout = err {
                     continue;
                 } else {
-                    println!("Error: {:?}", err);
+                    println!("Error: {err:?}");
                     break;
                 }
             }

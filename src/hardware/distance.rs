@@ -158,7 +158,7 @@ fn distance_sensor_control_loop(
 pub struct DistanceController {
     state: Arc<SharedState<ReadingState>>,
     reading: Arc<Mutex<DistanceReading>>,
-    thread_handle: Option<thread::JoinHandle<()>>,
+    _thread_handle: Option<thread::JoinHandle<()>>,
 }
 
 impl DistanceController {
@@ -177,7 +177,7 @@ impl DistanceController {
         DistanceController {
             state,
             reading,
-            thread_handle: Some(thread_handle),
+            _thread_handle: Some(thread_handle),
         }
     }
 

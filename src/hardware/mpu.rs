@@ -17,7 +17,7 @@ pub struct Mpu {
     mpu9250: Mpu9250<I2cDevice<I2cdev>, mpu9250::Marg>,
     gyro_bias: [f32; 3],
     madgwick: Madgwick<f32>,
-    sample_period: Duration,
+    _sample_period: Duration,
 }
 
 impl Mpu {
@@ -33,7 +33,7 @@ impl Mpu {
         Mpu {
             mpu9250,
             madgwick,
-            sample_period,
+            _sample_period: sample_period,
             gyro_bias,
         }
     }
