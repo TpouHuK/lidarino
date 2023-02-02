@@ -205,109 +205,170 @@ impl DistanceController {
     }
 }
 
-/// HI50 Distance sensor.
-pub struct DistanceSensor {
-    tty_port: Box<dyn SerialPort>,
+pub use sensor::*;
+
+/* Real world sensor */
+#[cfg(not(feature = "mock_hardware"))]
+mod sensor {
+    use super::*;
+
+    /// HI50 Distance sensor.
+    pub struct DistanceSensor {
+        tty_port: Box<dyn SerialPort>,
+    }
+
+    impl Default for DistanceSensor {
+        fn default() -> Self {
+            Self::new()
+        }
+    }
+
+    impl DistanceSensor {
+        /// Create new HI50 Distance sensor with hardcoded values.
+        pub fn new() -> Self {
+            let tty_port = mio_serial::new("/dev/ttyS0", 19200)
+                .timeout(Duration::from_millis(3500))
+                .data_bits(DataBits::Eight)
+                .open()
+                .expect("Failed to open ttyS0 port.");
+            DistanceSensor { tty_port }
+        }
+
+        /// Enable laser. Sends `b"O"` on serial.
+        pub fn start(&mut self) -> Result<()> {
+            self.tty_port.write_all(b"O").expect("enabled laser");
+            self.tty_port.flush().expect("enabled laser");
+            let mut buf: Vec<u8> = vec![0; 7];
+            self.tty_port.read_exact(&mut buf).unwrap();
+            assert_eq!(buf, b"O,OK!\r\n");
+            Ok(())
+        }
+
+        /// Make "slow" measurement. Sends `b"D"` on serial.
+        pub fn read_distance(&mut self) -> DistanceReading {
+            let start = Instant::now();
+
+            self.tty_port.write_all(b"D").expect("enabled laser");
+            self.tty_port.flush().expect("enabled laser");
+
+            let mut buf: Vec<u8> = vec![0; 16];
+
+            if self.tty_port.read_exact(&mut buf).is_err() {
+                return DistanceReading::Err {
+                    error: DistanceReadingError::TODOErrorCodes,
+                    measuring_time: start.elapsed(),
+                };
+            }
+
+            // 'D: 5.614m,1211\r\n'
+            let range = [&buf[3..=3], &buf[5..=7]].concat();
+            let string = String::from_utf8(range).unwrap();
+            let number: u32 = string.parse().unwrap();
+
+            let q_range = &buf[10..=13];
+            let q_string = String::from_utf8(q_range.to_vec()).unwrap();
+            let q_number: u16 = q_string.parse().unwrap();
+
+            DistanceReading::Ok {
+                distance: Distance::from_mm(number),
+                quality: q_number,
+                measuring_time: start.elapsed(),
+            }
+        }
+
+        /// Make "fast" measurement. Sends `b"F"` on serial.
+        pub fn read_distance_fast(&mut self) -> DistanceReading {
+            let start = Instant::now();
+
+            self.tty_port.write_all(b"F").expect("enabled laser");
+            self.tty_port.flush().expect("enabled laser");
+
+            let mut buf: Vec<u8> = vec![0; 16];
+
+            if self.tty_port.read_exact(&mut buf).is_err() {
+                return DistanceReading::Err {
+                    error: DistanceReadingError::TODOErrorCodes,
+                    measuring_time: start.elapsed(),
+                };
+            }
+
+            // 'D: 5.614m,1211\r\n'
+            let range = [&buf[3..=3], &buf[5..=7]].concat();
+            let string = String::from_utf8(range).unwrap();
+            let number: u32 = string.parse().unwrap();
+
+            let q_range = &buf[10..=13];
+            let q_string = String::from_utf8(q_range.to_vec()).unwrap();
+            let q_number: u16 = q_string.parse().unwrap();
+
+            DistanceReading::Ok {
+                distance: Distance::from_mm(number),
+                quality: q_number,
+                measuring_time: start.elapsed(),
+            }
+        }
+
+        /// Close laser. Sends `b"C"` on serial.
+        pub fn stop(&mut self) -> Result<()> {
+            self.tty_port.write_all(b"C").expect("enabled laser");
+            self.tty_port.flush().expect("enabled laser");
+            let mut buf: Vec<u8> = vec![0; 7];
+            self.tty_port.read_exact(&mut buf).unwrap();
+            assert_eq!(buf, b"C,OK!\r\n");
+            Ok(())
+        }
+    }
 }
 
-impl Default for DistanceSensor {
-    fn default() -> Self {
-        Self::new()
-    }
-}
+/* Mock of a sensor */
+#[cfg(feature = "mock_hardware")]
+mod sensor {
+    use super::*;
+    /// HI50 Distance sensor.
+    pub struct DistanceSensor {}
 
-impl DistanceSensor {
-    /// Create new HI50 Distance sensor with hardcoded values.
-    pub fn new() -> Self {
-        let tty_port = mio_serial::new("/dev/ttyS0", 19200)
-            .timeout(Duration::from_millis(3500))
-            .data_bits(DataBits::Eight)
-            .open()
-            .expect("Failed to open ttyS0 port.");
-        DistanceSensor { tty_port }
+    impl Default for DistanceSensor {
+        fn default() -> Self {
+            Self::new()
+        }
     }
 
-    /// Enable laser. Sends `b"O"` on serial.
-    pub fn start(&mut self) -> Result<()> {
-        self.tty_port.write_all(b"O").expect("enabled laser");
-        self.tty_port.flush().expect("enabled laser");
-        let mut buf: Vec<u8> = vec![0; 7];
-        self.tty_port.read_exact(&mut buf).unwrap();
-        assert_eq!(buf, b"O,OK!\r\n");
-        Ok(())
-    }
+    impl DistanceSensor {
+        /// Create new HI50 Distance sensor with hardcoded values.
+        pub fn new() -> Self {
+            DistanceSensor {}
+        }
 
-    /// Make "slow" measurement. Sends `b"D"` on serial.
-    pub fn read_distance(&mut self) -> DistanceReading {
-        let start = Instant::now();
+        /// Enable laser. Sends `b"O"` on serial.
+        pub fn start(&mut self) -> Result<()> {
+            Ok(())
+        }
 
-        self.tty_port.write_all(b"D").expect("enabled laser");
-        self.tty_port.flush().expect("enabled laser");
+        /// Make "slow" measurement. Sends `b"D"` on serial.
+        pub fn read_distance(&mut self) -> DistanceReading {
+            let start = Instant::now();
 
-        let mut buf: Vec<u8> = vec![0; 16];
-
-        if self.tty_port.read_exact(&mut buf).is_err() {
-            return DistanceReading::Err {
-                error: DistanceReadingError::TODOErrorCodes,
+            DistanceReading::Ok {
+                distance: Distance::from_mm(123456),
+                quality: 42,
                 measuring_time: start.elapsed(),
-            };
+            }
         }
 
-        // 'D: 5.614m,1211\r\n'
-        let range = [&buf[3..=3], &buf[5..=7]].concat();
-        let string = String::from_utf8(range).unwrap();
-        let number: u32 = string.parse().unwrap();
+        /// Make "fast" measurement. Sends `b"F"` on serial.
+        pub fn read_distance_fast(&mut self) -> DistanceReading {
+            let start = Instant::now();
 
-        let q_range = &buf[10..=13];
-        let q_string = String::from_utf8(q_range.to_vec()).unwrap();
-        let q_number: u16 = q_string.parse().unwrap();
-
-        DistanceReading::Ok {
-            distance: Distance::from_mm(number),
-            quality: q_number,
-            measuring_time: start.elapsed(),
-        }
-    }
-
-    /// Make "fast" measurement. Sends `b"F"` on serial.
-    pub fn read_distance_fast(&mut self) -> DistanceReading {
-        let start = Instant::now();
-
-        self.tty_port.write_all(b"F").expect("enabled laser");
-        self.tty_port.flush().expect("enabled laser");
-
-        let mut buf: Vec<u8> = vec![0; 16];
-
-        if self.tty_port.read_exact(&mut buf).is_err() {
-            return DistanceReading::Err {
-                error: DistanceReadingError::TODOErrorCodes,
+            DistanceReading::Ok {
+                distance: Distance::from_mm(41414),
+                quality: 12341,
                 measuring_time: start.elapsed(),
-            };
+            }
         }
 
-        // 'D: 5.614m,1211\r\n'
-        let range = [&buf[3..=3], &buf[5..=7]].concat();
-        let string = String::from_utf8(range).unwrap();
-        let number: u32 = string.parse().unwrap();
-
-        let q_range = &buf[10..=13];
-        let q_string = String::from_utf8(q_range.to_vec()).unwrap();
-        let q_number: u16 = q_string.parse().unwrap();
-
-        DistanceReading::Ok {
-            distance: Distance::from_mm(number),
-            quality: q_number,
-            measuring_time: start.elapsed(),
+        /// Close laser. Sends `b"C"` on serial.
+        pub fn stop(&mut self) -> Result<()> {
+            Ok(())
         }
-    }
-
-    /// Close laser. Sends `b"C"` on serial.
-    pub fn stop(&mut self) -> Result<()> {
-        self.tty_port.write_all(b"C").expect("enabled laser");
-        self.tty_port.flush().expect("enabled laser");
-        let mut buf: Vec<u8> = vec![0; 7];
-        self.tty_port.read_exact(&mut buf).unwrap();
-        assert_eq!(buf, b"C,OK!\r\n");
-        Ok(())
     }
 }

@@ -66,8 +66,10 @@ fn make_measurement() -> (i32, i32, u32, u32) {
     let pitch_control: i32 = PITCH_CONTROLLER.get_target_pos();
     let yaw_control: i32 = YAW_CONTROLLER.get_target_pos();
     let (distance, quality) = match DISTANCE_CONTROLLER.get_measurement() {
-        DistanceReading::Ok{ distance, quality, ..} => {(distance.as_mm(), quality)},
-        _ => {(0,0)}
+        DistanceReading::Ok {
+            distance, quality, ..
+        } => (distance.as_mm(), quality),
+        _ => (0, 0),
     };
 
     (pitch_control, yaw_control, distance, quality as u32)

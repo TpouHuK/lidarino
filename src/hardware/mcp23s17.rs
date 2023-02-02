@@ -1,6 +1,12 @@
 //! MCP23S17 pin multiplexer.
+
+#[cfg(feature = "mock_hardware")]
+use super::mcp23s17_mock::{pin, Mcp23s17};
+#[cfg(not(feature = "mock_hardware"))]
+use rppal_mcp23s17::{pin, Mcp23s17};
+
 use rppal::gpio::Level;
-use rppal_mcp23s17::{ChipSelect, HardwareAddress, Mcp23s17, SpiBus, SpiMode};
+use rppal_mcp23s17::{ChipSelect, HardwareAddress, Port, SpiBus, SpiMode};
 use std::sync::mpsc::{self, Receiver, Sender};
 use std::sync::Mutex;
 use std::thread;
@@ -63,7 +69,6 @@ struct PinChangeRequest {
 
 /// Main thread for controlling MCP23S17.
 fn controller_thread(rx: Receiver<PinChangeRequest>, mcp23s17: Mcp23s17) {
-    use rppal_mcp23s17::*;
     let pins: [pin::OutputPin; 8] = core::array::from_fn(|i| {
         mcp23s17
             .get(Port::GpioA, i as u8)

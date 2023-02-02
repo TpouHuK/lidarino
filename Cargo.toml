@@ -22,7 +22,9 @@ serde_json = "1.0.91"
 env_logger = "0.10.0"
 serde = { version = "1.0.152", features = ["derive"] }
 rppal-mcp23s17 = "0.0.3"
+tsp-rs = "0.1.0"
 # opencv = { version = "0.74", default-features = false, features = ["imgproc", "highgui"]}
 
 [features]
+default = ["mock_hardware"]
 mock_hardware = []
