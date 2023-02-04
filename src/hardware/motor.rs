@@ -202,7 +202,7 @@ impl ControllerSharedData {
     }
 
     fn set_target_pos(&self, target_pos: i32) {
-        self.current_pos.store(target_pos, Ordering::Relaxed);
+        self.target_pos.store(target_pos, Ordering::Relaxed);
         self.notify_update();
     }
 

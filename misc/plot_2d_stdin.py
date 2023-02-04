@@ -20,7 +20,7 @@ for point in points:
     y_data.append(theta)
 
 plt.scatter(x_data, y_data)
-plt.plot(x_data, y_data, color="#ff00ff")
+#plt.plot(x_data, y_data, color="#ff00ff")
 
 plt.axis('equal')
 plt.show()
