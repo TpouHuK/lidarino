@@ -15,15 +15,15 @@ lazy_static! {
 
 lazy_static! {
     pub static ref YAW_CONTROLLER: StepMotorController = {
-        let yaw_pins = MCP23S17.step_motor_pins(YAW_PINS);
-        StepMotorController::from_pins(yaw_pins, DEFAULT_MOTOR_DELAY_MS)
+        let pins = MCP23S17.step_motor_pins(YAW_PINS);
+        StepMotorController::from_pins(pins, DEFAULT_MOTOR_DELAY_MS)
     };
 }
 
 lazy_static! {
     pub static ref PITCH_CONTROLLER: StepMotorController = {
-        let yaw_pins = MCP23S17.step_motor_pins(PITCH_PINS);
-        StepMotorController::from_pins(yaw_pins, DEFAULT_MOTOR_DELAY_MS)
+        let pins = MCP23S17.step_motor_pins(PITCH_PINS);
+        StepMotorController::from_pins(pins, DEFAULT_MOTOR_DELAY_MS)
     };
 }
 
