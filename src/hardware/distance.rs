@@ -183,7 +183,7 @@ impl DistanceController {
 
     /// Blocks thread untill current measurement request is complete
     /// Instantly returns if theres no request pending.
-    pub fn wait_until_done(&self) {
+    pub fn await_measurement(&self) {
         self.state.await_state(ReadingState::Ready);
     }
 
@@ -195,7 +195,7 @@ impl DistanceController {
     /// Blocking request for measurement. Returns result of measurement
     pub fn get_measurement(&self) -> DistanceReading {
         self.request_measurement();
-        self.wait_until_done();
+        self.await_measurement();
         *self.reading.lock().unwrap()
     }
 

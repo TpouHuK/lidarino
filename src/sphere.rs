@@ -1,21 +1,6 @@
 use std::f32::consts::{PI, TAU};
-
-pub struct Waypoint {
-    pub pitch: i32, pub yaw: i32,
-}
-
-impl Waypoint {
-    fn manhattan_distance(&self, other: Self) -> u32 {
-        ((self.pitch - other.pitch).abs() + (self.yaw - other.yaw).abs()) as u32
-    }
-}
-
-impl From<Point> for Waypoint {
-    fn from(point: Point) -> Self {
-        let (pitch, yaw) = point.as_pitch_yaw();
-        Waypoint {pitch, yaw}
-    }
-}
+use core::ops::Range;
+use std::time::Duration;
 
 pub struct Point {
     pub x: f32, pub y: f32, pub z: f32,
@@ -62,7 +47,36 @@ let phi: f32 = PI * (3.0 - 5f32.sqrt());
     }).collect()
 }
 
-pub fn nearest_neightbour_solve(waypoints: Vec<Waypoint>) -> Vec<Waypoint> {
-    let path = Vec::<Waypoint>::with_capacity(waypoints.len());
-    todo!()
+#[derive(Clone, Copy, Debug)]
+pub struct Waypoint {
+    pub pitch: i32, pub yaw: i32,
+}
+
+impl Waypoint {
+    fn manhattan_distance(&self, other: &Self) -> u32 {
+        ((self.pitch - other.pitch).abs() + (self.yaw - other.yaw).abs()) as u32
+    }
+}
+
+impl From<Point> for Waypoint {
+    fn from(point: Point) -> Self {
+        let (pitch, yaw) = point.as_pitch_yaw();
+        Waypoint {pitch, yaw}
+    }
+}
+
+impl tsp_rs::Metrizable for Waypoint {
+    fn cost(&self, other: &Self) -> f64 {
+        self.manhattan_distance(other) as f64
+    }
+}
+
+pub fn optimize_path(path: Vec<Waypoint>, duration: Duration) -> Vec<Waypoint> {
+    let mut tour = tsp_rs::Tour::new();
+    tour.path = path;
+
+    tour.optimize_nn();
+    tour.optimize_kopt(duration);
+    
+    tour.path
 }
