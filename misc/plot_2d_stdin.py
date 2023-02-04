@@ -1,6 +1,6 @@
 import matplotlib.pyplot as plt
 from math import sin, cos, tau, pi, sqrt, radians
-import 
+from sys import stdin
 
 points = []
 for line in stdin:
@@ -20,10 +20,7 @@ for point in points:
     y_data.append(theta)
 
 plt.scatter(x_data, y_data)
-path_x = [x_data[i] for i in path]
-path_y = [y_data[i] for i in path]
-
-plt.plot(path_x, path_y, color="#ff00ff")
+plt.plot(x_data, y_data, color="#ff00ff")
 
 plt.axis('equal')
 plt.show()

@@ -1,5 +1,22 @@
 use std::f32::consts::{PI, TAU};
 
+pub struct Waypoint {
+    pub pitch: i32, pub yaw: i32,
+}
+
+impl Waypoint {
+    fn manhattan_distance(&self, other: Self) -> u32 {
+        ((self.pitch - other.pitch).abs() + (self.yaw - other.yaw).abs()) as u32
+    }
+}
+
+impl From<Point> for Waypoint {
+    fn from(point: Point) -> Self {
+        let (pitch, yaw) = point.as_pitch_yaw();
+        Waypoint {pitch, yaw}
+    }
+}
+
 pub struct Point {
     pub x: f32, pub y: f32, pub z: f32,
 }
@@ -43,4 +60,9 @@ let phi: f32 = PI * (3.0 - 5f32.sqrt());
         let (x, y, z) = (x, z, y);
         Point::new(x * radius, y * radius, z * radius)
     }).collect()
+}
+
+pub fn nearest_neightbour_solve(waypoints: Vec<Waypoint>) -> Vec<Waypoint> {
+    let path = Vec::<Waypoint>::with_capacity(waypoints.len());
+    todo!()
 }
