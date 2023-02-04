@@ -27,5 +27,5 @@ spinners = "4.1.0"
 # opencv = { version = "0.74", default-features = false, features = ["imgproc", "highgui"]}
 
 [features]
-default = ["mock_hardware"]
+# default = ["mock_hardware"]
 mock_hardware = []
