@@ -62,7 +62,16 @@ fn manual_control() {
                 println!("measurement: {measurement:?}");
             }
             ["scan"] => {
+                println!("Yaw and Pitch set as 0.");
+                YAW_CONTROLLER.reset();
+                PITCH_CONTROLLER.reset();
+
                 do_scan();
+                println!("Going to 0, 0");
+                PITCH_CONTROLLER.set_target_pos(0);
+                PITCH_CONTROLLER.wait_stop();
+                YAW_CONTROLLER.set_target_pos(0);
+                YAW_CONTROLLER.wait_stop();
             }
             ["reset" | "r"] => {
                 println!("Yaw and Pitch set as 0.");
