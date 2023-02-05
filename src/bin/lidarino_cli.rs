@@ -121,7 +121,7 @@ fn do_scan() {
     };
     let points = lidarino::sphere::generate_points(opts);
     let waypoints: Vec<Waypoint> = points.into_iter().map(|p| p.into()).collect();
-    let waypoints = optimize_path(waypoints, Duration::from_secs(1));
+    let waypoints = optimize_path(waypoints, Duration::from_secs(10));
     sp.stop_and_persist(
         "✔",
         format!("Done path building in {:?}", path_start.elapsed()),
