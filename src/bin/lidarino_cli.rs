@@ -5,8 +5,10 @@ use lidarino::sphere::*;
 use spinners::{Spinner, Spinners};
 use std::ops::Range;
 use std::time::{Duration, Instant};
+use serde::{Serialize, Deserialize};
 
 use warp::Filter;
+
 
 fn sensors() -> String {
     match DISTANCE_CONTROLLER.get_measurement() {
@@ -91,6 +93,19 @@ fn make_measurement() -> (i32, i32, u32, u32) {
     (pitch_control, yaw_control, distance, quality as u32)
 }
 
+#[derive(Serialize, Deserialize)]
+struct ScannedCheckpoint {
+    x: f32,
+    y: f32,
+    z: f32,
+    waypoint_yaw: i32,
+    waypoint_pitch: i32,
+    current_yaw: i32,
+    current_pitch: i32,
+    distance: u32,
+    quality: u32,
+}
+
 fn do_scan() {
     println!("Scanning started");
 
@@ -137,9 +152,19 @@ fn do_scan() {
                         quality
                     ),
                 );
-                let point =
-                    Point::from_yaw_pitch_distance(waypoint.yaw, waypoint.pitch, distance.as_mm());
-                scanned_points.push(point);
+                let p = Point::from_yaw_pitch_distance(waypoint.yaw, waypoint.pitch, distance.as_mm());
+                let scanned_checkpoint = ScannedCheckpoint {
+                    x: p.x,
+                    y: p.y,
+                    z: p.z,
+                    waypoint_yaw: waypoint.yaw,
+                    waypoint_pitch: waypoint.pitch,
+                    current_yaw: YAW_CONTROLLER.get_current_pos(),
+                    current_pitch: PITCH_CONTROLLER.get_current_pos(),
+                    distance: distance.as_mm(),
+                    quality: quality as u32,
+                };
+                scanned_points.push(scanned_checkpoint);
             }
             DistanceReading::Err { .. } => {
                 sp.stop_and_persist("❌", format!("Failed #{i}."));
