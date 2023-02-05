@@ -113,7 +113,7 @@ fn do_scan() {
     let mut sp = Spinner::new(Spinners::Dots9, "Building a path.".into());
 
     let opts = ScanOptions {
-        amount_of_points: 10,
+        amount_of_points: 100,
         pitch_start: 0.0,
         pitch_end: 120.0,
         yaw_start: 180.0 - 90.0,

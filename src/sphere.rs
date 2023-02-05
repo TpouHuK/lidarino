@@ -39,13 +39,13 @@ impl Point {
     }
 
     pub fn from_yaw_pitch_distance(yaw: i32, pitch: i32, distance: u32) -> Point {
-        let yaw = yaw as f32 / 2000.0 * FRAC_PI_2 * -1.0;
-        let pitch = pitch as f32 / 2000.0 * FRAC_PI_2;
+        let yaw = yaw as f32 / 4000.0 * PI * -1.0;
+        let pitch = pitch as f32 / 4000.0 * PI;
         let distance = distance as f32 / 1000.0;
 
-        let x = yaw.sin() * pitch.cos() * distance;
-        let y = yaw.cos() * pitch.cos() * distance;
-        let z = pitch.sin() * distance;
+        let x = yaw.sin() * pitch.sin() * distance;
+        let y = yaw.cos() * pitch.sin() * distance;
+        let z = pitch.cos() * distance;
 
         Point { x, y, z }
     }
