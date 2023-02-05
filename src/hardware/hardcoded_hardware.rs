@@ -5,7 +5,7 @@ use super::motor::*;
 
 use lazy_static::lazy_static;
 
-const DEFAULT_MOTOR_DELAY_MS: u32 = 0;
+const DEFAULT_MOTOR_DELAY_MS: u32 = 4;
 const PITCH_PINS: [u8; 4] = [0, 1, 2, 3];
 const YAW_PINS: [u8; 4] = [4, 5, 6, 7];
 
