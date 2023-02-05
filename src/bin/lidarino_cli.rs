@@ -138,7 +138,10 @@ fn do_scan() {
     let mut scanned_points = Vec::new();
     let scan_start = Instant::now();
 
-    let starting_point = Waypoint{ yaw: YAW_CONTROLLER.get_current_pos(), pitch: PITCH_CONTROLLER.get_current_pos() };
+    let starting_point = Waypoint {
+        yaw: YAW_CONTROLLER.get_current_pos(),
+        pitch: PITCH_CONTROLLER.get_current_pos(),
+    };
     let mut estimated_distance_to_travel: u32 = {
         waypoints
             .iter()
@@ -168,12 +171,13 @@ fn do_scan() {
             }
         };
 
-        let estimated_traveling_time =
-            estimated_distance_to_travel * Duration::from_millis(YAW_CONTROLLER.get_step_delay_ms() as u64);
+        let estimated_traveling_time = estimated_distance_to_travel
+            * Duration::from_millis(YAW_CONTROLLER.get_step_delay_ms() as u64);
         let estimated_measuring_time = average_measuring_duration * (waypoints.len() - i) as u32;
         let estimated_time = estimated_measuring_time + estimated_traveling_time;
 
-        let msg = format!("Going to point #{i}. Elapsed: {elapsed:?} Time left: {estimated_time:?}");
+        let msg =
+            format!("Going to point #{i}. Elapsed: {elapsed:?} Time left: {estimated_time:?}");
         sp = Spinner::new(Spinners::Line, msg);
 
         let gonna_travel = ((YAW_CONTROLLER.get_current_pos() - waypoint.yaw).abs()
@@ -187,7 +191,6 @@ fn do_scan() {
         YAW_CONTROLLER.wait_stop();
         PITCH_CONTROLLER.set_target_pos(waypoint.pitch);
         PITCH_CONTROLLER.wait_stop();
-
 
         let measurement = DISTANCE_CONTROLLER.get_measurement();
 
