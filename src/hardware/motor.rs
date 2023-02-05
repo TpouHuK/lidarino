@@ -196,6 +196,10 @@ impl ControllerSharedData {
         self.step_delay_ms.store(step_delay_ms, Ordering::Relaxed);
     }
 
+    fn get_step_delay_ms(&self) {
+        self.step_delay_ms.load(Ordering::Relaxed);
+    }
+
     fn set_current_pos(&self, current_pos: i32) {
         self.current_pos.store(current_pos, Ordering::Relaxed);
         self.notify_update();
@@ -350,6 +354,11 @@ impl StepMotorController {
     /// Set delay between motor steps.
     pub fn set_step_delay_ms(&self, step_delay_ms: u32) {
         self.shared.set_step_delay_ms(step_delay_ms);
+    }
+
+    /// Get delay between motor steps.
+    pub fn get_step_delay_ms(&self, step_delay_ms: u32) {
+        self.shared.get_step_delay_ms();
     }
 
     /// Checks if motor is running or not.
