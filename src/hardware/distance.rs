@@ -248,10 +248,9 @@ mod sensor {
         pub fn read_distance(&mut self) -> DistanceReading {
             let start = Instant::now();
             let err = DistanceReading::Err {
-                    error: DistanceReadingError::TODOErrorCodes,
-                    measuring_time: start.elapsed(),
-                };
-
+                error: DistanceReadingError::TODOErrorCodes,
+                measuring_time: start.elapsed(),
+            };
 
             self.tty_port.write_all(b"D").expect("enabled laser");
             self.tty_port.flush().expect("enabled laser");
@@ -269,18 +268,26 @@ mod sensor {
             let number: u32 = {
                 let range = [&buf[3..=3], &buf[5..=7]].concat();
                 let string = String::from_utf8(range);
-                if string.is_err() { return err }
+                if string.is_err() {
+                    return err;
+                }
                 let number = string.unwrap().parse();
-                if number.is_err() { return err }
+                if number.is_err() {
+                    return err;
+                }
                 number.unwrap()
             };
 
             let q_number: u16 = {
                 let q_range = &buf[10..=13];
                 let string = String::from_utf8(q_range.to_vec());
-                if string.is_err() { return err }
+                if string.is_err() {
+                    return err;
+                }
                 let q_number = string.unwrap().parse();
-                if q_number.is_err() { return err }
+                if q_number.is_err() {
+                    return err;
+                }
                 q_number.unwrap()
             };
 
