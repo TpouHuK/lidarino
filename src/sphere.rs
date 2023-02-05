@@ -1,5 +1,5 @@
 use serde::{Deserialize, Serialize};
-use std::f32::consts::{FRAC_PI_2, PI, TAU};
+use std::f32::consts::{PI, TAU};
 use std::time::Duration;
 
 #[derive(Serialize, Deserialize)]
