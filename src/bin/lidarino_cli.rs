@@ -239,26 +239,6 @@ fn do_scan() {
     std::fs::write("points.json", json_string).unwrap();
 }
 
-/*
-const YAW_RANGE: Range<i32> = -2000..2000;
-const PITCH_RANGE: Range<i32> = -1800..1000;
-fn start_scan() {
-    for yaw in YAW_RANGE.step_by(20) {
-        YAW_CONTROLLER.set_target_pos(yaw);
-        YAW_CONTROLLER.wait_stop();
-        for pitch in PITCH_RANGE.step_by(20) {
-            PITCH_CONTROLLER.set_target_pos(pitch);
-            PITCH_CONTROLLER.wait_stop();
-
-            let m = make_measurement();
-            println!(
-                "{{ \"pitch\": {}, \"yaw\": {}, \"distance_mm\": {}, \"quality\": {}}},",
-                m.0, m.1, m.2, m.3
-            );
-        }
-    }
-} */
-
 fn main() {
     println!("WELCOME TO LIDARINO");
     manual_control();
