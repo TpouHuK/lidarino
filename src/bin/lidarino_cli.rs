@@ -1,24 +1,9 @@
-#![allow(dead_code, unused_imports)]
 use lidarino::hardware::distance::DistanceReading;
 use lidarino::hardware::{DISTANCE_CONTROLLER, PITCH_CONTROLLER, YAW_CONTROLLER};
 use lidarino::sphere::*;
 use serde::{Deserialize, Serialize};
 use spinners::{Spinner, Spinners};
-use std::ops::Range;
 use std::time::{Duration, Instant};
-
-use warp::Filter;
-
-fn sensors() -> String {
-    match DISTANCE_CONTROLLER.get_measurement() {
-        DistanceReading::Ok {
-            distance, quality, ..
-        } => {
-            format!("{{{}, {quality}}}", distance.as_mm())
-        }
-        _ => "some error idk".to_string(),
-    }
-}
 
 fn manual_control() {
     use std::io;
@@ -58,7 +43,7 @@ fn manual_control() {
                 break;
             }
             ["measure" | "m"] => {
-                let measurement = make_measurement();
+                let measurement = DISTANCE_CONTROLLER.get_measurement();
                 println!("measurement: {measurement:?}");
             }
             ["scan"] => {
@@ -84,21 +69,6 @@ fn manual_control() {
         }
         user_input.clear();
     }
-}
-
-// Yaw, pitch, distance
-fn make_measurement() -> (i32, i32, u32, u32) {
-    use std::sync::atomic::Ordering;
-    let pitch_control: i32 = PITCH_CONTROLLER.get_target_pos();
-    let yaw_control: i32 = YAW_CONTROLLER.get_target_pos();
-    let (distance, quality) = match DISTANCE_CONTROLLER.get_measurement() {
-        DistanceReading::Ok {
-            distance, quality, ..
-        } => (distance.as_mm(), quality),
-        _ => (0, 0),
-    };
-
-    (pitch_control, yaw_control, distance, quality as u32)
 }
 
 #[derive(Serialize, Deserialize)]

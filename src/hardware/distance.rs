@@ -21,7 +21,7 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::{Duration, Instant};
 
-#[derive(PartialEq, Eq, Clone, Copy)]
+#[derive(PartialEq, Eq, Clone, Copy, Debug)]
 pub struct Distance {
     millimeters: u32,
 }
@@ -36,7 +36,7 @@ impl Distance {
     }
 }
 
-#[derive(Default, Clone, Copy)]
+#[derive(Default, Clone, Copy, Debug)]
 pub enum DistanceReading {
     #[default]
     NoReading,
@@ -70,7 +70,7 @@ impl Default for ReadingState {
     }
 }
 
-#[derive(PartialEq, Eq, Clone, Copy)]
+#[derive(PartialEq, Eq, Clone, Copy, Debug)]
 pub enum DistanceReadingError {
     UnknownError = 0,
     /// VBAT too low, power boltage should >= 2.0V
@@ -130,7 +130,7 @@ impl DistanceReadingError {
             x if x == LaserSignalIsNotStable as u8 => LaserSignalIsNotStable,
             x if x == HardwareFault6 as u8 => HardwareFault6,
             x if x == HardwareFault7 as u8 => HardwareFault7,
-            _ => UnknownError, // Todo change to unkown error code
+            _ => UnknownError, // Todo change to unknown error code
         }
     }
 }
@@ -225,6 +225,7 @@ impl ReadingMode {
 
 pub use sensor::*;
 
+//TODO, add propper logging for errors, maybe improve errors
 /* Real world sensor */
 #[cfg(not(feature = "mock_hardware"))]
 mod sensor {
@@ -265,7 +266,9 @@ mod sensor {
         fn read_distance_mode(&mut self, mode: ReadingMode) -> DistanceReading {
             let start = Instant::now();
 
-            self.tty_port.write_all(mode.as_u8()).expect("enabled laser");
+            self.tty_port
+                .write_all(mode.as_u8())
+                .expect("enabled laser");
             self.tty_port.flush().expect("enabled laser");
 
             // HI50 returns following messages:
@@ -273,7 +276,7 @@ mod sensor {
             // back input, don't know for sure)
             //
             // On success: `[D/F/M]: 5.614m,1211\r\n`
-            // On error: `[D/F/M]:Er08!`
+            // On error: `[D/F/M]:Er08!\r\n`
             let mut buf: Vec<u8> = vec![0; 16];
             let mut filled_len = 0;
             loop {
@@ -286,23 +289,23 @@ mod sensor {
                             break;
                         }
 
-                        if filled_len >= 8 && &buf[2..=3] == b"Er" {
+                        if filled_len >= 9 && &buf[2..=3] == b"Er" {
                             let error_code: anyhow::Result<u8> = std::str::from_utf8(&buf[4..=5])
-                                .map_err(|e| e.into() )
-                                .and_then(|err_code_str|
-                                    err_code_str.parse::<u8>()
-                                    .map_err(|e| e.into())
-                                );
+                                .map_err(|e| e.into())
+                                .and_then(|err_code_str| {
+                                    err_code_str.parse::<u8>().map_err(|e| e.into())
+                                });
                             if let Ok(error_code) = error_code {
                                 return DistanceReading::Err {
                                     error: DistanceReadingError::new(error_code),
                                     measuring_time: start.elapsed(),
-                                }
+                                };
                             }
                         }
                     }
                     Err(_err) => {
                         //error!(IO distance sensor error)
+                        eprintln!("Oopsy io error, {_err:?}");
                         return DistanceReading::Err {
                             error: DistanceReadingError::UnknownError,
                             measuring_time: start.elapsed(),
@@ -313,18 +316,20 @@ mod sensor {
 
             // `D: 5.614m,1211\r\n`
             let unkown_error = DistanceReading::Err {
-                    error: DistanceReadingError::UnknownError,
-                    measuring_time: start.elapsed(),
-                };
+                error: DistanceReadingError::UnknownError,
+                measuring_time: start.elapsed(),
+            };
 
             let number: u32 = {
                 let range = [&buf[2..=3], &buf[5..=7]].concat();
                 let string = String::from_utf8(range);
                 if string.is_err() {
+                    //eprintln!("Oopsy, bad string, {string:?}");
                     return unkown_error;
                 }
                 let number = string.unwrap().trim().parse();
                 if number.is_err() {
+                    //eprintln!("Oopsy, bad number, {number:?}");
                     return unkown_error;
                 }
                 number.unwrap()
@@ -334,10 +339,12 @@ mod sensor {
                 let q_range = &buf[10..=13];
                 let string = String::from_utf8(q_range.to_vec());
                 if string.is_err() {
+                    //eprintln!("Oopsy, bad qstring, {string:?}");
                     return unkown_error;
                 }
                 let q_number = string.unwrap().parse();
                 if q_number.is_err() {
+                    //eprintln!("Oopsy, bad qnumber, {number:?}");
                     return unkown_error;
                 }
                 q_number.unwrap()

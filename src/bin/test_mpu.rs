@@ -25,33 +25,55 @@ pub fn test_raw_mpu() {
     let i2c = I2cdev::new(I2C_ADDR).unwrap();
     let mut mpu9250 = Mpu9250::marg_default(i2c, &mut Delay).expect("unable to make MPU9250");
     mpu9250.mag_scale(mpu9250::MagScale::_16BITS).unwrap();
-    eprintln!("MPU onboard accel bias: {:?}", mpu9250.get_accel_bias::<[f32; 3]>());
-    eprintln!("MPU onboard gyro bias: {:?}", mpu9250.get_gyro_bias::<[f32; 3]>());
-    eprintln!("MPU onboard mag sensitivity adjustments: {:?}", mpu9250.mag_sensitivity_adjustments::<[f32; 3]>());
-    eprintln!("Trying to test update frequency (unscaled version)");
+    eprintln!(
+        "MPU onboard gyro bias: {:?}",
+        mpu9250.get_gyro_bias::<[f32; 3]>()
+    );
+    eprintln!(
+        "MPU onboard mag sensitivity adjustments: {:?}",
+        mpu9250.mag_sensitivity_adjustments::<[f32; 3]>()
+    );
+    eprintln!("Trying to test update frequency dlpf0 rate");
 
     use mpu9250::*;
     //mpu9250.gyro_temp_data_rate(GyroTempDataRate::DlpfConf(Dlpf::_6)).unwrap();
-    mpu9250.gyro_temp_data_rate(GyroTempDataRate::DlpfConf(Dlpf::_7)).unwrap();
+    mpu9250
+        .gyro_temp_data_rate(GyroTempDataRate::DlpfConf(Dlpf::_1))
+        .unwrap();
+    eprintln!(
+        "MPU onboard accel bias before calib: {:?}",
+        mpu9250.get_accel_bias::<[f32; 3]>()
+    );
+    let _: Result<[f32; 3], _> = mpu9250.calibrate_at_rest(&mut linux_embedded_hal::Delay);
+    eprintln!(
+        "MPU onboard accel bias after calib: {:?}",
+        mpu9250.get_accel_bias::<[f32; 3]>()
+    );
+
     let n = 5000;
     let mut readings = Vec::with_capacity(n);
     let start_time = Instant::now();
-    for _ in 0..n { 
+    for _ in 0..n {
         let r_start = Instant::now();
-        readings.push((mpu9250.accel::<[f32; 3]>().expect("unable to read from MPU!"), r_start.elapsed()));
+        readings.push((
+            mpu9250
+                .gyro::<[f32; 3]>()
+                .expect("unable to read from MPU!"),
+            r_start.elapsed(),
+        ));
     }
     let duration = start_time.elapsed();
     eprintln!("{n} reading were made in {duration:?}");
-    let readings_per_second = n as f32 / duration.as_secs_f32() ;
+    let readings_per_second = n as f32 / duration.as_secs_f32();
     eprintln!("readings per second: {readings_per_second}");
-    for r in  readings {
+    for r in readings {
         println!("{} {} {} {}", r.0[0], r.0[1], r.0[2], r.1.as_secs_f32());
     }
-    
+
     println!("   Accel XYZ(m/s^2)  |   Gyro XYZ (rad/s)  |  Mag Field XYZ(uT)  | Temp (C)");
     loop {
         let all: MargMeasurements<[f32; 3]> = mpu9250.all().expect("unable to read from MPU!");
-        print!("\r{:>6.2} {:>6.2} {:>6.2} |{:>6.1} {:>6.1} {:>6.1} |{:>6.1} {:>6.1} {:>6.1} | {:>4.1} ",
+        print!("\r{:>6.2} {:>6.2} {:>6.2} |{:>6.9} {:>6.9} {:>6.9} |{:>6.1} {:>6.1} {:>6.1} | {:>4.1} ",
                all.accel[0],
                all.accel[1],
                all.accel[2],
@@ -67,6 +89,6 @@ pub fn test_raw_mpu() {
 }
 
 fn main() {
-    //test_madwick_mpu();
-    test_raw_mpu();
+    test_madwick_mpu();
+    //test_raw_mpu();
 }

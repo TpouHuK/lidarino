@@ -1,6 +1,6 @@
 //! MPU9250 with rotation tracking.
 
-use std::{time::Duration, sync::atomic::Ordering};
+use std::time::Duration;
 // use std::sync::atomic::{AtomicBool, Ordering};
 // use std::sync::Arc;
 // use std::thread;
@@ -12,9 +12,11 @@ use mpu9250::*;
 
 const I2C_ADDR: &str = "/dev/i2c-1";
 
+type MpuDevice = Mpu9250<I2cDevice<I2cdev>, mpu9250::Marg>;
+
 /// MPU9250 with rotation tracking.
 pub struct Mpu {
-    mpu9250: Mpu9250<I2cDevice<I2cdev>, mpu9250::Marg>,
+    mpu9250: MpuDevice,
     gyro_bias: [f32; 3],
     madgwick: Madgwick<f32>,
     _sample_period: Duration,
@@ -40,10 +42,6 @@ impl Mpu {
 
     pub fn calibrate(&mut self) {
         // Accelerometer average is uleses, cause we need to do it for every direction
-        let _accelerometer_avg: [f32; 3] = self
-            .mpu9250
-            .calibrate_at_rest(&mut Delay)
-            .expect("calibration failed");
         eprintln!("Internal calibration done");
 
         let start = std::time::Instant::now();
@@ -90,6 +88,5 @@ impl Mpu {
 }
 
 fn control_loop(mpu: Mpu) {
-    loop {
-    }
+    loop {}
 }
