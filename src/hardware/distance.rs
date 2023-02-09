@@ -72,7 +72,7 @@ impl Default for ReadingState {
 
 #[derive(PartialEq, Eq, Clone, Copy)]
 pub enum DistanceReadingError {
-    TODOErrorCodes = 0, // todo rename this into UnknownCode
+    UnknownError = 0,
     /// VBAT too low, power boltage should >= 2.0V
     VbatTooLow = 1,
     /// Internal error, don't care
@@ -110,27 +110,27 @@ pub enum DistanceReadingError {
 }
 
 impl DistanceReadingError {
-    pub fn new(code: u16) -> Self {
+    pub fn new(code: u8) -> Self {
         use DistanceReadingError::*;
         match code {
-            x if x == VbatTooLow as u16 => VbatTooLow,
-            x if x == InternalError as u16 => InternalError,
-            x if x == TempTooLow as u16 => TempTooLow,
-            x if x == TempTooHigh as u16 => TempTooHigh,
-            x if x == TargetOutOfMeasureRange as u16 => TargetOutOfMeasureRange,
-            x if x == InvalidMeasureResult as u16 => InvalidMeasureResult,
-            x if x == BackgroundLightIsTooStrong as u16 => BackgroundLightIsTooStrong,
-            x if x == LaserSignalIsTooWeak as u16 => LaserSignalIsTooWeak,
-            x if x == LaserSignalIsTooStrong as u16 => LaserSignalIsTooStrong,
-            x if x == HardwareFault1 as u16 => HardwareFault1,
-            x if x == HardwareFault2 as u16 => HardwareFault2,
-            x if x == HardwareFault3 as u16 => HardwareFault3,
-            x if x == HardwareFault4 as u16 => HardwareFault4,
-            x if x == HardwareFault5 as u16 => HardwareFault5,
-            x if x == LaserSignalIsNotStable as u16 => LaserSignalIsNotStable,
-            x if x == HardwareFault6 as u16 => HardwareFault6,
-            x if x == HardwareFault7 as u16 => HardwareFault7,
-            _ => TODOErrorCodes, // Todo change to unkown error code
+            x if x == VbatTooLow as u8 => VbatTooLow,
+            x if x == InternalError as u8 => InternalError,
+            x if x == TempTooLow as u8 => TempTooLow,
+            x if x == TempTooHigh as u8 => TempTooHigh,
+            x if x == TargetOutOfMeasureRange as u8 => TargetOutOfMeasureRange,
+            x if x == InvalidMeasureResult as u8 => InvalidMeasureResult,
+            x if x == BackgroundLightIsTooStrong as u8 => BackgroundLightIsTooStrong,
+            x if x == LaserSignalIsTooWeak as u8 => LaserSignalIsTooWeak,
+            x if x == LaserSignalIsTooStrong as u8 => LaserSignalIsTooStrong,
+            x if x == HardwareFault1 as u8 => HardwareFault1,
+            x if x == HardwareFault2 as u8 => HardwareFault2,
+            x if x == HardwareFault3 as u8 => HardwareFault3,
+            x if x == HardwareFault4 as u8 => HardwareFault4,
+            x if x == HardwareFault5 as u8 => HardwareFault5,
+            x if x == LaserSignalIsNotStable as u8 => LaserSignalIsNotStable,
+            x if x == HardwareFault6 as u8 => HardwareFault6,
+            x if x == HardwareFault7 as u8 => HardwareFault7,
+            _ => UnknownError, // Todo change to unkown error code
         }
     }
 }
@@ -149,9 +149,9 @@ fn distance_sensor_control_loop(
         }
 
         let mut reading_m = distance_reading.lock().unwrap();
-        //*reading_m = distance_sensor.read_distance();
+        *reading_m = distance_sensor.read_distance();
         //*reading_m = distance_sensor.read_distance_fast();
-        *reading_m = distance_sensor.read_distance_slow();
+        //*reading_m = distance_sensor.read_distance_slow();
         state.set_state(ReadingState::Ready);
     }
 }
@@ -207,6 +207,22 @@ impl DistanceController {
     }
 }
 
+pub enum ReadingMode {
+    Default,
+    Fast,
+    Slow,
+}
+
+impl ReadingMode {
+    pub fn as_u8(&self) -> &'static [u8] {
+        match self {
+            ReadingMode::Default => b"D",
+            ReadingMode::Fast => b"F",
+            ReadingMode::Slow => b"M",
+        }
+    }
+}
+
 pub use sensor::*;
 
 /* Real world sensor */
@@ -246,36 +262,70 @@ mod sensor {
             Ok(())
         }
 
-        /// Make "default" measurement. Sends `b"D"` on serial.
-        pub fn read_distance(&mut self) -> DistanceReading {
+        fn read_distance_mode(&mut self, mode: ReadingMode) -> DistanceReading {
             let start = Instant::now();
-            let err = DistanceReading::Err {
-                error: DistanceReadingError::TODOErrorCodes,
-                measuring_time: start.elapsed(),
-            };
 
-            self.tty_port.write_all(b"D").expect("enabled laser");
+            self.tty_port.write_all(mode.as_u8()).expect("enabled laser");
             self.tty_port.flush().expect("enabled laser");
 
+            // HI50 returns following messages:
+            // Where [D/F/M] is D or F or M, the same as in the request. (Maybe serial just echoes
+            // back input, don't know for sure)
+            //
+            // On success: `[D/F/M]: 5.614m,1211\r\n`
+            // On error: `[D/F/M]:Er08!`
             let mut buf: Vec<u8> = vec![0; 16];
+            let mut filled_len = 0;
+            loop {
+                let reading_result = self.tty_port.read(&mut buf[filled_len..]);
+                match reading_result {
+                    Ok(read_bytes) => {
+                        filled_len += read_bytes;
 
-            if self.tty_port.read_exact(&mut buf).is_err() {
-                return DistanceReading::Err {
-                    error: DistanceReadingError::TODOErrorCodes,
-                    measuring_time: start.elapsed(),
-                };
+                        if filled_len == buf.len() {
+                            break;
+                        }
+
+                        if filled_len >= 8 && &buf[2..=3] == b"Er" {
+                            let error_code: anyhow::Result<u8> = std::str::from_utf8(&buf[4..=5])
+                                .map_err(|e| e.into() )
+                                .and_then(|err_code_str|
+                                    err_code_str.parse::<u8>()
+                                    .map_err(|e| e.into())
+                                );
+                            if let Ok(error_code) = error_code {
+                                return DistanceReading::Err {
+                                    error: DistanceReadingError::new(error_code),
+                                    measuring_time: start.elapsed(),
+                                }
+                            }
+                        }
+                    }
+                    Err(_err) => {
+                        //error!(IO distance sensor error)
+                        return DistanceReading::Err {
+                            error: DistanceReadingError::UnknownError,
+                            measuring_time: start.elapsed(),
+                        };
+                    }
+                }
             }
 
-            // 'D: 5.614m,1211\r\n'
+            // `D: 5.614m,1211\r\n`
+            let unkown_error = DistanceReading::Err {
+                    error: DistanceReadingError::UnknownError,
+                    measuring_time: start.elapsed(),
+                };
+
             let number: u32 = {
-                let range = [&buf[3..=3], &buf[5..=7]].concat();
+                let range = [&buf[2..=3], &buf[5..=7]].concat();
                 let string = String::from_utf8(range);
                 if string.is_err() {
-                    return err;
+                    return unkown_error;
                 }
-                let number = string.unwrap().parse();
+                let number = string.unwrap().trim().parse();
                 if number.is_err() {
-                    return err;
+                    return unkown_error;
                 }
                 number.unwrap()
             };
@@ -284,11 +334,11 @@ mod sensor {
                 let q_range = &buf[10..=13];
                 let string = String::from_utf8(q_range.to_vec());
                 if string.is_err() {
-                    return err;
+                    return unkown_error;
                 }
                 let q_number = string.unwrap().parse();
                 if q_number.is_err() {
-                    return err;
+                    return unkown_error;
                 }
                 q_number.unwrap()
             };
@@ -298,114 +348,21 @@ mod sensor {
                 quality: q_number,
                 measuring_time: start.elapsed(),
             }
+        }
+
+        /// Make "default" measurement. Sends `b"D"` on serial.
+        pub fn read_distance(&mut self) -> DistanceReading {
+            self.read_distance_mode(ReadingMode::Default)
         }
 
         /// Make "fast" measurement. Sends `b"F"` on serial.
         pub fn read_distance_fast(&mut self) -> DistanceReading {
-            let start = Instant::now();
-            let err = DistanceReading::Err {
-                error: DistanceReadingError::TODOErrorCodes,
-                measuring_time: start.elapsed(),
-            };
-
-            self.tty_port.write_all(b"F").expect("enabled laser");
-            self.tty_port.flush().expect("enabled laser");
-
-            let mut buf: Vec<u8> = vec![0; 16];
-
-            if self.tty_port.read_exact(&mut buf).is_err() {
-                return DistanceReading::Err {
-                    error: DistanceReadingError::TODOErrorCodes,
-                    measuring_time: start.elapsed(),
-                };
-            }
-
-            // 'D: 5.614m,1211\r\n'
-            let number: u32 = {
-                let range = [&buf[3..=3], &buf[5..=7]].concat();
-                let string = String::from_utf8(range);
-                if string.is_err() {
-                    return err;
-                }
-                let number = string.unwrap().parse();
-                if number.is_err() {
-                    return err;
-                }
-                number.unwrap()
-            };
-
-            let q_number: u16 = {
-                let q_range = &buf[10..=13];
-                let string = String::from_utf8(q_range.to_vec());
-                if string.is_err() {
-                    return err;
-                }
-                let q_number = string.unwrap().parse();
-                if q_number.is_err() {
-                    return err;
-                }
-                q_number.unwrap()
-            };
-
-            DistanceReading::Ok {
-                distance: Distance::from_mm(number),
-                quality: q_number,
-                measuring_time: start.elapsed(),
-            }
+            self.read_distance_mode(ReadingMode::Fast)
         }
 
         /// Make "slow" measurement. Sends `b"M"` on serial.
         pub fn read_distance_slow(&mut self) -> DistanceReading {
-            let start = Instant::now();
-            let err = DistanceReading::Err {
-                error: DistanceReadingError::TODOErrorCodes,
-                measuring_time: start.elapsed(),
-            };
-
-            self.tty_port.write_all(b"M").expect("enabled laser");
-            self.tty_port.flush().expect("enabled laser");
-
-            let mut buf: Vec<u8> = vec![0; 16];
-
-            if self.tty_port.read_exact(&mut buf).is_err() {
-                return DistanceReading::Err {
-                    error: DistanceReadingError::TODOErrorCodes,
-                    measuring_time: start.elapsed(),
-                };
-            }
-
-            // 'D: 5.614m,1211\r\n'
-            let number: u32 = {
-                let range = [&buf[3..=3], &buf[5..=7]].concat();
-                let string = String::from_utf8(range);
-                if string.is_err() {
-                    return err;
-                }
-                let number = string.unwrap().parse();
-                if number.is_err() {
-                    return err;
-                }
-                number.unwrap()
-            };
-
-            let q_number: u16 = {
-                let q_range = &buf[10..=13];
-                let string = String::from_utf8(q_range.to_vec());
-                if string.is_err() {
-                    return err;
-                }
-                let q_number = string.unwrap().parse();
-                if q_number.is_err() {
-                    return err;
-                }
-                q_number.unwrap()
-            };
-
-            DistanceReading::Ok {
-                distance: Distance::from_mm(number),
-                quality: q_number,
-                measuring_time: start.elapsed(),
-            }
+            self.read_distance_mode(ReadingMode::Slow)
         }
 
         /// Close laser. Sends `b"C"` on serial.

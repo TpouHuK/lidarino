@@ -1,14 +1,14 @@
 //! MPU9250 with rotation tracking.
 
-use std::time::Duration;
+use std::{time::Duration, sync::atomic::Ordering};
 // use std::sync::atomic::{AtomicBool, Ordering};
 // use std::sync::Arc;
 // use std::thread;
+use nalgebra::base::Vector3;
 
 use ahrs::{Ahrs, Madgwick};
 use linux_embedded_hal::{Delay, I2cdev};
 use mpu9250::*;
-use nalgebra::base::Vector3;
 
 const I2C_ADDR: &str = "/dev/i2c-1";
 
@@ -86,5 +86,10 @@ impl Mpu {
         self.madgwick
             .update_imu(&gyro, &all.accel)
             .expect("Madgwick update succeeded")
+    }
+}
+
+fn control_loop(mpu: Mpu) {
+    loop {
     }
 }

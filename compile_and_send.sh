@@ -12,6 +12,7 @@
 
 BINARY=$1
 DESTINATION="pi@raspberrypi.local:~/"
+#DESTINATION="pi@10.13.202.3:~/"
 
 if [[ $* == *--release* ]]
 then
@@ -22,4 +23,4 @@ else
 	DIR="debug"
 fi
 
-cross build -v --target=arm-unknown-linux-gnueabihf --release --bin $BINARY && scp ./target/arm-unknown-linux-gnueabihf/$DIR/$BINARY $DESTINATION
+cross build -v --target=arm-unknown-linux-gnueabihf $MODE --bin $BINARY && scp ./target/arm-unknown-linux-gnueabihf/$DIR/$BINARY $DESTINATION
