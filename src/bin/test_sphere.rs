@@ -17,8 +17,8 @@ fn main() {
     }
     let waypoints: Vec<Waypoint> = points.into_iter().map(|p| p.into()).collect();
     let waypoints = optimize_path(waypoints, Duration::from_secs(1));
-    for waypoint in waypoints {
-        //println!("{} {}", waypoint.yaw, waypoint.pitch);
+    for _waypoint in waypoints {
+        //println!("{} {}", _waypoint.yaw, _waypoint.pitch);
     }
     //let waypoints = nearest_neightbour_solve(waypoints);
 }

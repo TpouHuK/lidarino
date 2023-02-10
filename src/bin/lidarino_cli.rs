@@ -1,5 +1,7 @@
 use lidarino::hardware::distance::DistanceReading;
-use lidarino::hardware::{DISTANCE_CONTROLLER, PITCH_CONTROLLER, YAW_CONTROLLER};
+use lidarino::hardware::{
+    DISTANCE_CONTROLLER, ORIENTATION_CONTROLLER, PITCH_CONTROLLER, YAW_CONTROLLER,
+};
 use lidarino::sphere::*;
 use serde::{Deserialize, Serialize};
 use spinners::{Spinner, Spinners};
@@ -80,6 +82,9 @@ struct ScannedCheckpoint {
     waypoint_pitch: i32,
     current_yaw: i32,
     current_pitch: i32,
+    roll: f32,
+    pitch: f32,
+    yaw: f32,
     distance: u32,
     quality: u32,
 }
@@ -181,6 +186,7 @@ fn do_scan() {
                 );
                 let p =
                     Point::from_yaw_pitch_distance(waypoint.yaw, waypoint.pitch, distance.as_mm());
+                let (roll, pitch, yaw) = ORIENTATION_CONTROLLER.get_quat().euler_angles();
                 let scanned_checkpoint = ScannedCheckpoint {
                     x: p.x,
                     y: p.y,
@@ -189,14 +195,20 @@ fn do_scan() {
                     waypoint_pitch: waypoint.pitch,
                     current_yaw: YAW_CONTROLLER.get_current_pos(),
                     current_pitch: PITCH_CONTROLLER.get_current_pos(),
+                    roll,
+                    pitch,
+                    yaw,
                     distance: distance.as_mm(),
                     quality: quality as u32,
                 };
                 scanned_points.push(scanned_checkpoint);
             }
-            DistanceReading::Err { measuring_time, .. } => {
+            DistanceReading::Err {
+                measuring_time,
+                error,
+            } => {
                 measurements.push(measuring_time);
-                sp.stop_and_persist("❌", format!("Failed #{i}."));
+                sp.stop_and_persist("❌", format!("Failed #{i}. {error:?}"));
             }
             DistanceReading::NoReading => {
                 unreachable!()
@@ -211,5 +223,6 @@ fn do_scan() {
 
 fn main() {
     println!("WELCOME TO LIDARINO");
+    lazy_static::initialize(&ORIENTATION_CONTROLLER);
     manual_control();
 }

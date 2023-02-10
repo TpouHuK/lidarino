@@ -1,6 +1,7 @@
 use lidarino::hardware::mpu::*;
 use linux_embedded_hal::{Delay, I2cdev};
 use mpu9250::*;
+
 use std::thread;
 use std::time::Duration;
 use std::time::Instant;
@@ -8,16 +9,49 @@ use std::time::Instant;
 const I2C_ADDR: &str = "/dev/i2c-1";
 
 pub fn test_madwick_mpu() {
-    let mut mpu = Mpu::new(Duration::from_millis(10));
+    let mut mpu = Mpu::new(Duration::from_millis(1));
+    mpu.mpu9250
+        .gyro_temp_data_rate(GyroTempDataRate::DlpfConf(Dlpf::_6))
+        .unwrap();
+    mpu.mpu9250
+        .accel_data_rate(AccelDataRate::DlpfConf(Dlpf::_6))
+        .unwrap();
+
     println!("Calibration started.");
     mpu.calibrate();
     println!("Calibration finished.");
-    println!();
+    println!("gyro bias: {:?}", mpu.gyro_bias);
+
+    let mut prev_measurement = Instant::now();
+    let rate_hz = 1000;
+    let tick_time = Duration::from_secs(1) / rate_hz;
+    let start = Instant::now();
+    let mut ticks = 0u32;
 
     loop {
+        ticks += 1;
+        let mut wait_amount = tick_time.checked_sub(prev_measurement.elapsed());
+
+        while wait_amount.is_some() {
+            wait_amount = tick_time.checked_sub(prev_measurement.elapsed());
+        }
+
+        prev_measurement = Instant::now();
         let quat = mpu.update();
         let (roll, pitch, yaw) = quat.euler_angles();
-        print!("\rpitch={pitch:>6.2}, roll={roll:>6.2}, yaw={yaw:>6.2}");
+
+        let roll = roll.to_degrees();
+        let pitch = pitch.to_degrees();
+        let yaw = yaw.to_degrees();
+
+        let rate = ticks as f32 / start.elapsed().as_secs_f32();
+        if ticks % 1000 == 0 {
+            let accel = mpu.raw_accel;
+            let gyro = mpu.raw_gyro;
+            print!("\rpitch={pitch:>6.4}, roll={roll:>6.4}, yaw={yaw:>6.4} rate={rate:>6.4}, accel={accel:?}, gyro={gyro:?}");
+            use std::io::Write;
+            std::io::stdout().flush().unwrap();
+        }
     }
 }
 
@@ -68,23 +102,6 @@ pub fn test_raw_mpu() {
     eprintln!("readings per second: {readings_per_second}");
     for r in readings {
         println!("{} {} {} {}", r.0[0], r.0[1], r.0[2], r.1.as_secs_f32());
-    }
-
-    println!("   Accel XYZ(m/s^2)  |   Gyro XYZ (rad/s)  |  Mag Field XYZ(uT)  | Temp (C)");
-    loop {
-        let all: MargMeasurements<[f32; 3]> = mpu9250.all().expect("unable to read from MPU!");
-        print!("\r{:>6.2} {:>6.2} {:>6.2} |{:>6.9} {:>6.9} {:>6.9} |{:>6.1} {:>6.1} {:>6.1} | {:>4.1} ",
-               all.accel[0],
-               all.accel[1],
-               all.accel[2],
-               all.gyro[0],
-               all.gyro[1],
-               all.gyro[2],
-               all.mag[0],
-               all.mag[1],
-               all.mag[2],
-               all.temp);
-        thread::sleep(Duration::from_millis(100));
     }
 }
 

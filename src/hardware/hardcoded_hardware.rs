@@ -2,6 +2,7 @@
 use super::distance::*;
 use super::mcp23s17::*;
 use super::motor::*;
+use super::mpu::OrientationController;
 
 use lazy_static::lazy_static;
 
@@ -32,4 +33,12 @@ lazy_static! {
         let distance_sensor = DistanceSensor::new();
         DistanceController::new(distance_sensor)
     };
+}
+
+lazy_static! {
+    pub static ref ORIENTATION_CONTROLLER: OrientationController = OrientationController::new();
+}
+
+lazy_static! {
+    pub static ref MPU_CONTROLLER: () = todo!();
 }
