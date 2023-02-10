@@ -139,6 +139,7 @@ impl DistanceReadingError {
 fn distance_sensor_control_loop(
     mut distance_sensor: DistanceSensor,
     state: Arc<SharedState<ReadingState>>,
+    mode: Arc<Mutex<ReadingMode>>,
     distance_reading: Arc<Mutex<DistanceReading>>,
 ) {
     loop {
@@ -149,9 +150,7 @@ fn distance_sensor_control_loop(
         }
 
         let mut reading_m = distance_reading.lock().unwrap();
-        *reading_m = distance_sensor.read_distance();
-        //*reading_m = distance_sensor.read_distance_fast();
-        //*reading_m = distance_sensor.read_distance_slow();
+        *reading_m = distance_sensor.read_distance_mode(*mode.lock().unwrap());
         state.set_state(ReadingState::Ready);
     }
 }
@@ -160,6 +159,7 @@ fn distance_sensor_control_loop(
 pub struct DistanceController {
     state: Arc<SharedState<ReadingState>>,
     reading: Arc<Mutex<DistanceReading>>,
+    reading_mode: Arc<Mutex<ReadingMode>>,
     _thread_handle: Option<thread::JoinHandle<()>>,
 }
 
@@ -172,15 +172,32 @@ impl DistanceController {
         let state_clone = state.clone();
         let reading_clone = reading.clone();
 
+        let reading_mode = Arc::new(Mutex::new(ReadingMode::Default));
+        let reading_mode_clone = reading_mode.clone();
+
         let thread_handle = thread::spawn(move || {
-            distance_sensor_control_loop(distance_sensor, state_clone, reading_clone)
+            distance_sensor_control_loop(
+                distance_sensor,
+                state_clone,
+                reading_mode_clone,
+                reading_clone,
+            )
         });
 
         DistanceController {
             state,
             reading,
+            reading_mode,
             _thread_handle: Some(thread_handle),
         }
+    }
+
+    pub fn set_mode(&self, mode: ReadingMode) {
+        *self.reading_mode.lock().unwrap() = mode;
+    }
+
+    pub fn get_mode(&self) -> ReadingMode {
+        *self.reading_mode.lock().unwrap()
     }
 
     /// Blocks thread untill current measurement request is complete
@@ -207,6 +224,7 @@ impl DistanceController {
     }
 }
 
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub enum ReadingMode {
     Default,
     Fast,
@@ -263,7 +281,7 @@ mod sensor {
             Ok(())
         }
 
-        fn read_distance_mode(&mut self, mode: ReadingMode) -> DistanceReading {
+        pub fn read_distance_mode(&mut self, mode: ReadingMode) -> DistanceReading {
             let start = Instant::now();
 
             self.tty_port
