@@ -1,11 +1,20 @@
+use lazy_static::lazy_static;
+use lidarino::config::{Config, CONFIG_PATH};
 use lidarino::hardware::distance::DistanceReading;
+use lidarino::hardware::mpu::*;
+use lidarino::hardware::mpu::{get_magnetometer_data, OrientationController};
 use lidarino::hardware::{
-    DISTANCE_CONTROLLER, ORIENTATION_CONTROLLER, PITCH_CONTROLLER, YAW_CONTROLLER,
+    DISTANCE_CONTROLLER, MPU_CONTROLLER, ORIENTATION_CONTROLLER, PITCH_CONTROLLER, YAW_CONTROLLER,
 };
 use lidarino::sphere::*;
 use serde::{Deserialize, Serialize};
 use spinners::{Spinner, Spinners};
+use std::sync::Mutex;
 use std::time::{Duration, Instant};
+
+lazy_static! {
+    static ref CONFIG: Mutex<Config> = { Mutex::new(Config::default()) };
+}
 
 fn manual_control() {
     use std::io;
@@ -23,7 +32,14 @@ fn manual_control() {
             ["state" | "t"] => {
                 let yaw = YAW_CONTROLLER.get_current_pos();
                 let pitch = PITCH_CONTROLLER.get_current_pos();
-                println!("current_yaw: {yaw}, current_pitch: {pitch}");
+                let (roll_a, pitch_a, yaw_a) = ORIENTATION_CONTROLLER
+                    .lock()
+                    .unwrap()
+                    .as_ref()
+                    .unwrap()
+                    .get_quat()
+                    .euler_angles();
+                println!("current_yaw: {yaw}, current_pitch: {pitch}, roll: {roll_a}, pitch: {pitch_a}, yaw: {yaw_a}");
             }
             ["yaw" | "y", angle] => {
                 let angle: i32 = angle.parse().unwrap();
@@ -64,6 +80,77 @@ fn manual_control() {
                 println!("Yaw and Pitch set as 0.");
                 YAW_CONTROLLER.reset();
                 PITCH_CONTROLLER.reset();
+            }
+            ["calibrate", "gyro"] | ["cg"] => {
+                println!("Gyroscope calibration started. Keep MPU still.");
+                let mut mpu = MPU_CONTROLLER.lock().unwrap();
+                let gyro_bias =
+                    lidarino::hardware::mpu::calculate_gyro_bias(&mut mpu, &Duration::from_secs(3));
+                drop(mpu);
+                let mut config = CONFIG.lock().unwrap();
+                match &mut config.mpu_config {
+                    None => {
+                        panic!("wtf is this config");
+                    }
+                    Some(mpu_config) => mpu_config.gyro_bias = gyro_bias,
+                }
+                match config.save_to_file(CONFIG_PATH) {
+                    Ok(_) => {
+                        println!("Saved config to file.");
+                    }
+                    Err(e) => {
+                        println!("Error writing a config: {e:?}");
+                    }
+                }
+            }
+            ["calibrate", "accel"] | ["ca"] => {
+                println!("Accelerometer calibration started.");
+                let mut mpu = MPU_CONTROLLER.lock().unwrap();
+                let (accel_bias, accel_scale) =
+                    lidarino::hardware::mpu::calculate_accel_bias_and_scale(&mut mpu);
+                drop(mpu);
+                let mut config = CONFIG.lock().unwrap();
+                match &mut config.mpu_config {
+                    None => {
+                        panic!("wtf is this config");
+                    }
+                    Some(mpu_config) => {
+                        mpu_config.accel_bias = accel_bias;
+                        mpu_config.accel_scale = accel_scale;
+                    }
+                }
+                match config.save_to_file(CONFIG_PATH) {
+                    Ok(_) => {
+                        println!("Saved config to file.");
+                    }
+                    Err(e) => {
+                        println!("Error writing a config: {e:?}");
+                    }
+                }
+            }
+            ["magdump"] => {
+                let mut mpu = MPU_CONTROLLER.lock().unwrap();
+                let data = lidarino::hardware::mpu::get_magnetometer_data(
+                    &mut mpu,
+                    &Duration::from_secs(60),
+                );
+                let mut dump = String::new();
+                for d in data {
+                    dump.push_str(&format!("{} {} {}\n", d[0], d[1], d[2]));
+                }
+                std::fs::write("magnetometer_dump", dump).unwrap();
+            }
+            ["init_orientation"] => {
+                let mut orientation_controller = ORIENTATION_CONTROLLER.lock().unwrap();
+                if orientation_controller.is_none() {
+                    let mpu_config = CONFIG.lock().unwrap().mpu_config.unwrap();
+                    let mpu = Mpu::new(mpu_config);
+                    let new_c = OrientationController::new(mpu);
+                    *orientation_controller = Some(new_c);
+                    println!("Done initialization, pls dont access MPU using other means. FIXME");
+                } else {
+                    println!("Error, orientation controller allready initialized");
+                }
             }
             _ => {
                 println!("{split:?}, {user_input}")
@@ -186,7 +273,13 @@ fn do_scan() {
                 );
                 let p =
                     Point::from_yaw_pitch_distance(waypoint.yaw, waypoint.pitch, distance.as_mm());
-                let (roll, pitch, yaw) = ORIENTATION_CONTROLLER.get_quat().euler_angles();
+                let (roll, pitch, yaw) = ORIENTATION_CONTROLLER
+                    .lock()
+                    .unwrap()
+                    .as_ref()
+                    .unwrap()
+                    .get_quat()
+                    .euler_angles();
                 let scanned_checkpoint = ScannedCheckpoint {
                     x: p.x,
                     y: p.y,
@@ -223,6 +316,12 @@ fn do_scan() {
 
 fn main() {
     println!("WELCOME TO LIDARINO");
-    lazy_static::initialize(&ORIENTATION_CONTROLLER);
+    if CONFIG.lock().unwrap().load_from_file(CONFIG_PATH).is_ok() {
+        println!("Succesfully loaded config from \"{CONFIG_PATH}\"");
+    } else {
+        println!("Failed loading config from \"{CONFIG_PATH}\"");
+    };
+
+    //lazy_static::initialize(&ORIENTATION_CONTROLLER);
     manual_control();
 }

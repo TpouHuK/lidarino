@@ -88,6 +88,7 @@ async fn start_http() {
             "Access-Control-Request-Headers",
             "Origin",
             "Accept",
+            "Accept",
             "X-Requested-With",
             "Content-Type",
         ])
@@ -116,5 +117,5 @@ async fn start_http() {
 
     let tree = command.or(status).or(measure_distance).with(cors);
 
-    warp::serve(tree).run(([127, 0, 0, 1], 8000)).await;
+    warp::serve(tree).run(([0, 0, 0, 0], 8000)).await;
 }

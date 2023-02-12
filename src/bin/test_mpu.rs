@@ -7,7 +7,7 @@ use std::time::Instant;
 
 const I2C_ADDR: &str = "/dev/i2c-1";
 
-pub fn test_madwick_mpu() {
+/* pub fn test_madwick_mpu() {
     let mut mpu = Mpu::new(Duration::from_millis(1));
     mpu.mpu9250
         .gyro_temp_data_rate(GyroTempDataRate::DlpfConf(Dlpf::_6))
@@ -102,9 +102,9 @@ pub fn test_raw_mpu() {
     for r in readings {
         println!("{} {} {} {}", r.0[0], r.0[1], r.0[2], r.1.as_secs_f32());
     }
-}
+}*/
 
 fn main() {
-    test_madwick_mpu();
+    //test_madwick_mpu();
     //test_raw_mpu();
 }

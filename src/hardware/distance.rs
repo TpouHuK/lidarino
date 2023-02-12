@@ -448,6 +448,16 @@ mod sensor {
             }
         }
 
+        pub fn read_distance_mode(&mut self, mode: ReadingMode) -> DistanceReading {
+            let start = Instant::now();
+
+            DistanceReading::Ok {
+                distance: Distance::from_mm(41414),
+                quality: 12341,
+                measuring_time: start.elapsed(),
+            }
+        }
+
         /// Close laser. Sends `b"C"` on serial.
         pub fn stop(&mut self) -> Result<()> {
             Ok(())

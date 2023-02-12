@@ -2,12 +2,13 @@
 use super::distance::*;
 use super::mcp23s17::*;
 use super::motor::*;
-use super::mpu::OrientationController;
+use super::mpu::{Mpu, MpuConfig, OrientationController};
+use std::sync::Mutex;
 
 use lazy_static::lazy_static;
 
 const DEFAULT_MOTOR_DELAY_MS: u32 = 4;
-const PITCH_PINS: [u8; 4] = [0, 1, 2, 3];
+const PITCH_PINS: [u8; 4] = [3, 2, 1, 0];
 const YAW_PINS: [u8; 4] = [4, 5, 6, 7];
 
 lazy_static! {
@@ -36,9 +37,10 @@ lazy_static! {
 }
 
 lazy_static! {
-    pub static ref ORIENTATION_CONTROLLER: OrientationController = OrientationController::new();
+    pub static ref ORIENTATION_CONTROLLER: Mutex<Option<OrientationController>> =
+        { Mutex::new(None) };
 }
 
 lazy_static! {
-    pub static ref MPU_CONTROLLER: () = todo!();
+    pub static ref MPU_CONTROLLER: Mutex<Mpu> = { Mutex::new(Mpu::new(MpuConfig::default())) };
 }

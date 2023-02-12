@@ -1,115 +1,185 @@
 //! MPU9250 with rotation tracking.
 
-use std::time::Duration;
-// use std::sync::atomic::{AtomicBool, Ordering};
-// use std::sync::Arc;
-// use std::thread;
-
-use ahrs::{Ahrs, Madgwick};
+use anyhow::Result;
 use linux_embedded_hal::{Delay, I2cdev};
 use mpu9250::*;
+use nalgebra::UnitQuaternion;
+use serde::{Deserialize, Serialize};
+use std::sync::{Arc, Mutex};
+use std::time::Duration;
+use std::time::Instant;
 
 const I2C_ADDR: &str = "/dev/i2c-1";
 
-/// MPU9250 with rotation tracking.
+#[derive(Deserialize, Serialize, Clone, Copy)]
+pub struct MpuConfig {
+    pub gyro_bias: [f32; 3],
+    pub accel_bias: [f32; 3],
+    pub accel_scale: [f32; 3],
+}
+
+impl Default for MpuConfig {
+    fn default() -> Self {
+        MpuConfig {
+            gyro_bias: [0.0; 3],
+            accel_bias: [0.0; 3],
+            accel_scale: [1.0; 3],
+        }
+    }
+}
+
 pub struct Mpu {
     pub mpu9250: Mpu9250<I2cDevice<I2cdev>, mpu9250::Marg>,
-    pub gyro_bias: [f32; 3],
-    pub madgwick: Madgwick<f32>,
-    pub raw_accel: [f32; 3],
-    pub raw_gyro: [f32; 3],
-    pub _sample_period: Duration,
+    pub config: MpuConfig,
 }
 
 impl Mpu {
     /// Create new MPU9250.
-    pub fn new(sample_period: Duration) -> Self {
+    pub fn new(config: MpuConfig) -> Self {
         let i2c = I2cdev::new(I2C_ADDR).unwrap();
         let mpu9250 = Mpu9250::marg_default(i2c, &mut Delay).expect("unable to make MPU9250");
-        let filter_gain = 0.5;
-        let madgwick = Madgwick::new(sample_period.as_secs_f32(), filter_gain);
-
-        let gyro_bias = [0.0; 3];
-
-        Mpu {
-            mpu9250,
-            madgwick,
-            _sample_period: sample_period,
-            raw_accel: [0.0; 3],
-            raw_gyro: [0.0; 3],
-            gyro_bias,
-        }
+        Mpu { mpu9250, config }
     }
 
-    pub fn calibrate(&mut self) {
-        let start = std::time::Instant::now();
-        self.gyro_bias = [0.0; 3];
-        let mut amount = 0;
-
-        while start.elapsed().as_secs() < 1 {
-            amount += 1;
-            let gyro_reading: [f32; 3] = self.mpu9250.gyro().unwrap();
-            for (i, reading) in gyro_reading.iter().enumerate() {
-                self.gyro_bias[i] += reading;
-            }
+    pub fn get_accel_gyro(&mut self) -> Result<([f32; 3], [f32; 3])> {
+        let measurements = self
+            .mpu9250
+            .all()
+            .map_err(|_e| anyhow::format_err!("I2C is ded"))?;
+        let mut gyro: [f32; 3] = measurements.gyro;
+        for (gyro, bias) in gyro.iter_mut().zip(self.config.gyro_bias) {
+            *gyro -= bias;
         }
-
-        for i in 0..3 {
-            self.gyro_bias[i] /= (amount as f32) * -1.0;
+        let mut accel: [f32; 3] = measurements.accel;
+        for ((accel, bias), scale) in accel
+            .iter_mut()
+            .zip(self.config.accel_bias)
+            .zip(self.config.accel_scale)
+        {
+            *accel -= bias;
+            *accel *= scale;
         }
-    }
-
-    pub fn read_accel(&mut self) -> [f32; 3] {
-        let mut gyro: [f32; 3] = self.mpu9250.gyro().unwrap();
-        for (i, gyro_val) in gyro.iter_mut().enumerate() {
-            *gyro_val += self.gyro_bias[i];
-        }
-        gyro
-    }
-
-    pub fn update(&mut self) -> &nalgebra::Unit<nalgebra::Quaternion<f32>> {
-        // let all: MargMeasurements<Vector3<f32>> =
-        // self.mpu9250.all().expect("unable to read from MPU");
-        let mut gyro: [f32; 3] = self.mpu9250.gyro().unwrap();
-        let accel: [f32; 3] = self.mpu9250.accel().unwrap();
-
-        // TODO use magnetometer for god's sake
-        //self.madgwick.update(&all.gyro, &all.accel, &all.mag)
-
-        //let mut gyro = all.gyro;
-        for (i, gyro) in gyro.iter_mut().enumerate() {
-            *gyro += self.gyro_bias[i];
-        }
-
-        self.raw_accel = accel;
-        self.raw_gyro = gyro;
-
-        self.madgwick
-            .update_imu(&gyro.into(), &accel.into())
-            .expect("Madgwick update succeeded")
+        Ok((accel, gyro))
     }
 }
 
-use nalgebra::UnitQuaternion;
-use std::sync::{Arc, Mutex};
-use std::time::Instant;
+#[must_use]
+pub fn get_magnetometer_data(mpu: &mut Mpu, duration: &Duration) -> Vec<[f32; 3]> {
+    let start_time = Instant::now();
+    let mut data = Vec::new();
+    while start_time.elapsed() < *duration {
+        let reading = mpu.mpu9250.mag();
+        if let Ok(reading) = reading {
+            match data.last() {
+                None => data.push(reading),
+                Some(last) => {
+                    if last != &reading {
+                        data.push(reading)
+                    }
+                }
+            }
+        } else {
+            eprintln!("Error reading from mag: {reading:?}");
+        }
+    }
+    data
+}
+
+#[must_use]
+pub fn calculate_gyro_bias(mpu: &mut Mpu, duration: &Duration) -> [f32; 3] {
+    let start_time = Instant::now();
+    let mut gyro_biases: [f32; 3] = [0.0, 0.0, 0.0];
+    let mut amount_of_readings = 0;
+    while start_time.elapsed() < *duration {
+        let reading: [f32; 3] = mpu.mpu9250.gyro().expect("unable to make gyro reading");
+        for (bias, reading) in gyro_biases.iter_mut().zip(reading) {
+            *bias += reading;
+        }
+        amount_of_readings += 1;
+    }
+    gyro_biases.map(|b| b / amount_of_readings as f32)
+}
+
+#[must_use]
+pub fn calculate_accel_bias_and_scale(mpu: &mut Mpu) -> ([f32; 3], [f32; 3]) {
+    eprintln!("Put mpu into 6 different positions, every time pointing some axis to ground.");
+    let stdin = std::io::stdin();
+    let mut zero_values: [Vec<f32>; 3] = Default::default();
+    let mut axis_ranges: [Vec<f32>; 3] = Default::default();
+
+    for i in 0..6 {
+        eprintln!("Put mpu into position {i} and press <Enter>.");
+        let mut input = String::new();
+        let _ = stdin.read_line(&mut input);
+
+        let accel: [f32; 3] = mpu.mpu9250.accel().expect("unable to make accel reading");
+        eprintln!("got reading: {accel:?}");
+
+        for (i, reading) in accel.iter().enumerate() {
+            if reading.abs() > 6.0 {
+                eprintln!("that was {i} axis");
+                axis_ranges[i].push(*reading);
+            } else {
+                zero_values[i].push(*reading);
+            }
+        }
+    }
+
+    for zero_array in zero_values.iter() {
+        assert!(zero_array.len() == 4);
+    }
+
+    for axis_array in axis_ranges.iter() {
+        assert!(axis_array.len() == 2);
+    }
+
+    use std::convert::TryInto;
+    let accel_bias: [f32; 3] = zero_values
+        .iter()
+        .map(|v| v.iter().sum::<f32>() / 4.0)
+        .collect::<Vec<f32>>()
+        .try_into()
+        .unwrap();
+
+    let accel_scale: [f32; 3] = axis_ranges
+        .iter()
+        .map(|v| (2.0 * mpu9250::G) / (v[0].abs() + v[1].abs()))
+        .collect::<Vec<f32>>()
+        .try_into()
+        .unwrap();
+
+    (accel_bias, accel_scale)
+}
 
 fn control_loop(mut mpu: Mpu, quaternion: Arc<Mutex<UnitQuaternion<f32>>>) {
     let rate_hz = 1000;
-    let tick_time = Duration::from_secs(1) / rate_hz;
+    let sample_period = Duration::from_secs(1) / rate_hz;
+    let filter_gain = 0.1;
 
     let mut prev_measurement = Instant::now();
+    let mut ahrs = ahrs::Madgwick::new(sample_period.as_secs_f32(), filter_gain);
     loop {
-        let mut wait_amount = tick_time.checked_sub(prev_measurement.elapsed());
+        let mut wait_amount = sample_period.checked_sub(prev_measurement.elapsed());
 
         while wait_amount.is_some() {
-            wait_amount = tick_time.checked_sub(prev_measurement.elapsed());
+            wait_amount = sample_period.checked_sub(prev_measurement.elapsed());
         }
 
         prev_measurement = Instant::now();
-        let quat = mpu.update();
-        let mut lock = quaternion.lock().unwrap();
-        *lock = *quat;
+        use ahrs::Ahrs;
+        use nalgebra::Vector3;
+
+        let measurement = mpu.get_accel_gyro();
+        if let Ok((accel, gyro)) = measurement {
+            let quat = ahrs
+                .update_imu(
+                    &Vector3::new(gyro[0], gyro[1], gyro[2]),
+                    &Vector3::new(accel[0], accel[1], accel[2]),
+                )
+                .unwrap();
+            let mut lock = quaternion.lock().unwrap();
+            *lock = *quat;
+        }
     }
 }
 
@@ -117,19 +187,11 @@ pub struct OrientationController {
     quat: Arc<Mutex<UnitQuaternion<f32>>>,
 }
 
-impl Default for OrientationController {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 impl OrientationController {
-    pub fn new() -> Self {
+    pub fn new(mpu: Mpu) -> Self {
         let quat = Arc::new(Mutex::new(UnitQuaternion::default()));
         let quat_clone = quat.clone();
         std::thread::spawn(|| {
-            let mut mpu = Mpu::new(Duration::from_millis(1));
-            mpu.calibrate();
             control_loop(mpu, quat_clone);
         });
         OrientationController { quat }

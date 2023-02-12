@@ -25,6 +25,7 @@ rppal-mcp23s17 = "0.0.3"
 tsp-rs = "0.1.0"
 spinners = "4.1.0"
 anyhow = "1.0.69"
+toml = "0.7.2"
 # opencv = { version = "0.74", default-features = false, features = ["imgproc", "highgui"]}
 
 [features]

@@ -16,6 +16,8 @@ def reshape_points(points):
 points = []
 for line in stdin:
     point = tuple(map(float, line.split()))
+    if any(abs(cord) > 1000 for cord in point):
+        continue
     points.append(point)
 
 x, y, z = reshape_points(points)
