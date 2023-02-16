@@ -183,15 +183,15 @@ fn do_scan() {
     let mut sp = Spinner::new(Spinners::Dots9, "Building a path.".into());
 
     let opts = ScanOptions {
-        amount_of_points: 100,
+        amount_of_points: 10000,
         pitch_start: 0.0,
-        pitch_end: 120.0,
+        pitch_end: 160.0,
         yaw_start: 180.0 - 90.0,
         yaw_end: 180.0 + 90.0,
     };
     let points = lidarino::sphere::generate_points(opts);
     let waypoints: Vec<Waypoint> = points.into_iter().map(|p| p.into()).collect();
-    let waypoints = optimize_path(waypoints, Duration::from_secs(10));
+    let waypoints = optimize_path(waypoints, Duration::from_secs(30));
     sp.stop_and_persist(
         "✔",
         format!("Done path building in {:?}", path_start.elapsed()),

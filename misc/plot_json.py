@@ -3,6 +3,7 @@ import matplotlib.pyplot as plt
 import matplotlib as mpl
 import json
 import random
+import sys
 
 def reshape_points(points):
     list_x = []
