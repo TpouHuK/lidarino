@@ -2,7 +2,7 @@ use lazy_static::lazy_static;
 use lidarino::config::{Config, CONFIG_PATH};
 use lidarino::hardware::distance::DistanceReading;
 use lidarino::hardware::mpu::*;
-use lidarino::hardware::mpu::{get_magnetometer_data, OrientationController};
+use lidarino::hardware::mpu::OrientationController;
 use lidarino::hardware::{
     DISTANCE_CONTROLLER, MPU_CONTROLLER, ORIENTATION_CONTROLLER, PITCH_CONTROLLER, YAW_CONTROLLER,
 };
@@ -13,7 +13,7 @@ use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
 lazy_static! {
-    static ref CONFIG: Mutex<Config> = { Mutex::new(Config::default()) };
+    static ref CONFIG: Mutex<Config> = Mutex::new(Config::default());
 }
 
 fn manual_control() {

@@ -1,3 +1,4 @@
+/*
 use lidarino::hardware::mpu::*;
 use linux_embedded_hal::{Delay, I2cdev};
 use mpu9250::*;
@@ -6,6 +7,7 @@ use std::time::Duration;
 use std::time::Instant;
 
 const I2C_ADDR: &str = "/dev/i2c-1";
+*/
 
 /* pub fn test_madwick_mpu() {
     let mut mpu = Mpu::new(Duration::from_millis(1));

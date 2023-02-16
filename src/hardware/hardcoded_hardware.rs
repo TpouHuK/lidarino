@@ -38,9 +38,9 @@ lazy_static! {
 
 lazy_static! {
     pub static ref ORIENTATION_CONTROLLER: Mutex<Option<OrientationController>> =
-        { Mutex::new(None) };
+         Mutex::new(None);
 }
 
 lazy_static! {
-    pub static ref MPU_CONTROLLER: Mutex<Mpu> = { Mutex::new(Mpu::new(MpuConfig::default())) };
+    pub static ref MPU_CONTROLLER: Mutex<Mpu> = Mutex::new(Mpu::new(MpuConfig::default()));
 }
