@@ -232,7 +232,7 @@ impl ControllerSharedData {
         cvar.notify_all();
     }
 
-    fn wait_update(&self) {
+    fn await_update(&self) {
         let (lock, cvar) = &*self.update_status;
         let mut update = lock.lock().unwrap();
         while !*update {
@@ -241,7 +241,7 @@ impl ControllerSharedData {
         *update = false;
     }
 
-    fn wait_noupdate(&self) {
+    fn await_noupdate(&self) {
         let (lock, cvar) = &*self.update_status;
         let mut update = lock.lock().unwrap();
         while *update {
@@ -306,7 +306,7 @@ fn control_loop<T: OutputPin>(mut motor: StepMotor<T>, shared: ControllerSharedD
             std::cmp::Ordering::Equal => {
                 motor.disable_power();
                 shared.notify_noupdate();
-                shared.wait_update()
+                shared.await_update()
             }
         }
     }
@@ -369,7 +369,7 @@ impl StepMotorController {
 
     /// Blocks current thread untill motor is finished rotating to target position.
     pub fn wait_stop(&self) {
-        self.shared.wait_noupdate();
+        self.shared.await_noupdate();
     }
 
     pub fn get_target_pos(&self) -> i32 {
