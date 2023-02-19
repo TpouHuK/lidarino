@@ -46,6 +46,7 @@ impl Mpu {
             .mpu9250
             .all()
             .map_err(|_e| anyhow::format_err!("I2C is ded"))?;
+
         let mut gyro: [f32; 3] = measurements.gyro;
         for (gyro, bias) in gyro.iter_mut().zip(self.config.gyro_bias) {
             *gyro -= bias;
@@ -151,26 +152,35 @@ pub fn calculate_accel_bias_and_scale(mpu: &mut Mpu) -> ([f32; 3], [f32; 3]) {
     (accel_bias, accel_scale)
 }
 
+use spin_sleep::LoopHelper;
+
 fn control_loop(mut mpu: Mpu, quaternion: Arc<Mutex<UnitQuaternion<f32>>>) {
-    let rate_hz = 1000;
-    let sample_period = Duration::from_secs(1) / rate_hz;
-    let filter_gain = 0.1;
+    let rate_hz = 500;
+    let sample_period = Duration::from_secs(1) / (rate_hz * 2);
+    let filter_gain = 0.1; // 0.0 -> Fully trust gyro, 1.0 -> fully trust accel
 
-    let mut prev_measurement = Instant::now();
+    let mut loop_helper = LoopHelper::builder()
+        .report_interval_s(5.0)
+        .build_with_target_rate(rate_hz);
+
     let mut ahrs = ahrs::Madgwick::new(sample_period.as_secs_f32(), filter_gain);
+
     loop {
-        let mut wait_amount = sample_period.checked_sub(prev_measurement.elapsed());
-
-        while wait_amount.is_some() {
-            wait_amount = sample_period.checked_sub(prev_measurement.elapsed());
-        }
-
-        prev_measurement = Instant::now();
+        loop_helper.loop_start();
         use ahrs::Ahrs;
         use nalgebra::Vector3;
 
+        if let Some(fps) = loop_helper.report_rate() {
+            eprintln!("MPU_UPDATE_LOOP UPS: {fps}");
+        }
+
         let measurement = mpu.get_accel_gyro();
         if let Ok((accel, gyro)) = measurement {
+            let _ = ahrs
+                .update_imu(
+                    &Vector3::new(gyro[0], gyro[1], gyro[2]),
+                    &Vector3::new(accel[0], accel[1], accel[2]),
+                );
             let quat = ahrs
                 .update_imu(
                     &Vector3::new(gyro[0], gyro[1], gyro[2]),
@@ -180,6 +190,7 @@ fn control_loop(mut mpu: Mpu, quaternion: Arc<Mutex<UnitQuaternion<f32>>>) {
             let mut lock = quaternion.lock().unwrap();
             *lock = *quat;
         }
+        loop_helper.loop_sleep();
     }
 }
 

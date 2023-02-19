@@ -26,6 +26,8 @@ tsp-rs = "0.1.0"
 spinners = "4.1.0"
 anyhow = "1.0.69"
 toml = "0.7.2"
+futures-util = "0.3.26"
+spin_sleep = "1.1.1"
 # opencv = { version = "0.74", default-features = false, features = ["imgproc", "highgui"]}
 
 [features]

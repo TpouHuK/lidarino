@@ -22,7 +22,9 @@ data = json.load(open("points.json"))
 points = []
 colors = []
 
-for p in data:
+for i, p in enumerate(data):
+    if i > 1000:
+        break
     points.append((p["x"], p["y"], p["z"]))
     colors.append(p["quality"])
 

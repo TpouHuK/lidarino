@@ -107,6 +107,7 @@ pub enum DistanceReadingError {
     HardwareFault6 = 16,
     /// Hardware fault 7
     HardwareFault7 = 17,
+    ParsingError,
 }
 
 impl DistanceReadingError {
@@ -342,12 +343,14 @@ mod sensor {
                 let range = [&buf[2..=3], &buf[5..=7]].concat();
                 let string = String::from_utf8(range);
                 if string.is_err() {
-                    //eprintln!("Oopsy, bad string, {string:?}");
+                    eprintln!("Oopsy, bad string, {string:?}");
+                    eprintln!("Sensor message: {buf:?}");
                     return unkown_error;
                 }
                 let number = string.unwrap().trim().parse();
                 if number.is_err() {
-                    //eprintln!("Oopsy, bad number, {number:?}");
+                    eprintln!("Oopsy, bad number, {number:?}");
+                    eprintln!("Sensor message: {buf:?}");
                     return unkown_error;
                 }
                 number.unwrap()
@@ -357,12 +360,14 @@ mod sensor {
                 let q_range = &buf[10..=13];
                 let string = String::from_utf8(q_range.to_vec());
                 if string.is_err() {
-                    //eprintln!("Oopsy, bad qstring, {string:?}");
+                    eprintln!("Oopsy, bad quality string, {string:?}");
+                    eprintln!("Sensor message: {buf:?}");
                     return unkown_error;
                 }
                 let q_number = string.unwrap().parse();
                 if q_number.is_err() {
-                    //eprintln!("Oopsy, bad qnumber, {number:?}");
+                    eprintln!("Oopsy, bad quality number, {number:?}");
+                    eprintln!("Sensor message: {buf:?}");
                     return unkown_error;
                 }
                 q_number.unwrap()

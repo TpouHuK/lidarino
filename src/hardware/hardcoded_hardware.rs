@@ -7,7 +7,7 @@ use std::sync::Mutex;
 
 use lazy_static::lazy_static;
 
-const DEFAULT_MOTOR_DELAY_MS: u32 = 4;
+const DEFAULT_MOTOR_DELAY_MS: u32 = 7;
 const PITCH_PINS: [u8; 4] = [3, 2, 1, 0];
 const YAW_PINS: [u8; 4] = [4, 5, 6, 7];
 

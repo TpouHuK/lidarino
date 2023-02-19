@@ -4,7 +4,9 @@ import sys
 
 data = json.load(sys.stdin)
 
-for p in data:
+for i, p in enumerate(data):
+    if i > 1000:
+        break
     yaw = p["yaw"]
     pitch = p["pitch"]
     distance = p["distance"] / 1000;
