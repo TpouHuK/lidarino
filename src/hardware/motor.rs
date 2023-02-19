@@ -304,6 +304,7 @@ fn control_loop<T: OutputPin>(mut motor: StepMotor<T>, shared: ControllerSharedD
             }
             // Zero, do nothing
             std::cmp::Ordering::Equal => {
+                motor.disable_power();
                 shared.notify_noupdate();
                 shared.wait_update()
             }
