@@ -35,4 +35,14 @@ impl<S: std::cmp::PartialEq + std::cmp::Eq + IsDead + Copy> SharedState<S> {
             state_m = self.cvar.wait(state_m).unwrap();
         }
     }
+
+    pub fn await_until<F>(&self, condition: F)
+    where
+        F: Fn(S) -> bool,
+    {
+        let mut state_m = self.state.lock().unwrap();
+        while !condition(*state_m) && !state_m.is_dead() {
+            state_m = self.cvar.wait(state_m).unwrap();
+        }
+    }
 }

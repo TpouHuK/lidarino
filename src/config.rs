@@ -22,9 +22,11 @@ impl Config {
     pub fn load_from_file<P: AsRef<Path>>(&mut self, path: P) -> Result<()> {
         let string = std::fs::read_to_string(path)?;
         *self = toml::from_str(&string)?;
+
         if self.mpu_config.is_none() {
             self.mpu_config = Some(MpuConfig::default());
         }
+
         Ok(())
     }
 

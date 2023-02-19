@@ -1,16 +1,18 @@
 use std::time::Duration;
 
+use lazy_static::lazy_static;
+use lidarino::config::{Config, CONFIG_PATH};
 use lidarino::hardware::distance::DistanceReading;
-use lidarino::hardware::{DISTANCE_CONTROLLER, PITCH_CONTROLLER, YAW_CONTROLLER, ORIENTATION_CONTROLLER};
+use lidarino::hardware::mpu::OrientationController;
+use lidarino::hardware::mpu::*;
+use lidarino::hardware::{
+    DISTANCE_CONTROLLER, ORIENTATION_CONTROLLER, PITCH_CONTROLLER, YAW_CONTROLLER,
+};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
-use warp::Filter;
-use warp::ws::{WebSocket, Message};
-use lidarino::config::{Config, CONFIG_PATH};
-use lazy_static::lazy_static;
 use std::sync::Mutex;
-use lidarino::hardware::mpu::*;
-use lidarino::hardware::mpu::OrientationController;
+use warp::ws::{Message, WebSocket};
+use warp::Filter;
 
 lazy_static! {
     static ref CONFIG: Mutex<Config> = Mutex::new(Config::default());
@@ -63,12 +65,12 @@ fn measure_distance() -> warp::reply::Json {
 
     warp::reply::json(&reply)
 }
-use futures_util::{FutureExt, StreamExt, SinkExt};
+use futures_util::{FutureExt, SinkExt, StreamExt};
 use tokio::time::sleep;
 
 async fn orientation_connected(ws: WebSocket) {
     let (mut tx, mut rx) = ws.split();
-    tokio::task::spawn( async move {
+    tokio::task::spawn(async move {
         let mut dt = 0.0f32;
         loop {
             sleep(Duration::from_secs(1) / 60).await;
@@ -86,8 +88,7 @@ async fn orientation_connected(ws: WebSocket) {
             }
         }
     });
-    while let Some(result) = rx.next().await {
-    };
+    while let Some(result) = rx.next().await {}
 }
 
 fn send_current_state() -> warp::reply::Json {
@@ -173,11 +174,13 @@ async fn start_http() {
 
     let orientation_websocket = warp::path("orientation")
         .and(warp::ws())
-        .map(|ws: warp::ws::Ws| {
-            ws.on_upgrade(orientation_connected)
-        });
+        .map(|ws: warp::ws::Ws| ws.on_upgrade(orientation_connected));
 
-    let tree = orientation_websocket.or(command).or(status).or(measure_distance).with(cors);
+    let tree = orientation_websocket
+        .or(command)
+        .or(status)
+        .or(measure_distance)
+        .with(cors);
 
     warp::serve(tree).run(([0, 0, 0, 0], 8000)).await;
 }

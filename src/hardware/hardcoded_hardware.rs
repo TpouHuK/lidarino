@@ -37,8 +37,7 @@ lazy_static! {
 }
 
 lazy_static! {
-    pub static ref ORIENTATION_CONTROLLER: Mutex<Option<OrientationController>> =
-         Mutex::new(None);
+    pub static ref ORIENTATION_CONTROLLER: Mutex<Option<OrientationController>> = Mutex::new(None);
 }
 
 lazy_static! {

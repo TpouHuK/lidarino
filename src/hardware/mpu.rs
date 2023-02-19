@@ -170,17 +170,16 @@ fn control_loop(mut mpu: Mpu, quaternion: Arc<Mutex<UnitQuaternion<f32>>>) {
         use ahrs::Ahrs;
         use nalgebra::Vector3;
 
-        if let Some(fps) = loop_helper.report_rate() {
+        /*if let Some(fps) = loop_helper.report_rate() {
             eprintln!("MPU_UPDATE_LOOP UPS: {fps}");
-        }
+        }*/
 
         let measurement = mpu.get_accel_gyro();
         if let Ok((accel, gyro)) = measurement {
-            let _ = ahrs
-                .update_imu(
-                    &Vector3::new(gyro[0], gyro[1], gyro[2]),
-                    &Vector3::new(accel[0], accel[1], accel[2]),
-                );
+            let _ = ahrs.update_imu(
+                &Vector3::new(gyro[0], gyro[1], gyro[2]),
+                &Vector3::new(accel[0], accel[1], accel[2]),
+            );
             let quat = ahrs
                 .update_imu(
                     &Vector3::new(gyro[0], gyro[1], gyro[2]),
