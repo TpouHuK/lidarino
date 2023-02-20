@@ -80,11 +80,11 @@ fn manual_control() {
                 }; */
 
              let opts = ScanOptions {
-                    amount_of_points: 1000,
-                    pitch_start: 0.0,
-                    pitch_end: 160.0,
-                    yaw_start: 180.0 - 90.0,
-                    yaw_end: 180.0 + 90.0,
+                    amount_of_points: 3000,
+                    pitch_start: (2100.0 / 2000.0 * 90.0),
+                    pitch_end: (2900.0 / 2000.0 * 90.0),
+                    yaw_start: 180.0 - (-300.0 / 2000.0 * 90.0),
+                    yaw_end: 180.0 + (2200.0 / 2000.0 * 90.0),
                 };
                 SCAN_JOB.generate_path(opts)
             }

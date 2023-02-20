@@ -17,14 +17,35 @@ def reshape_points(points):
 
     return (list_x, list_y, list_z)
 
-data = json.load(open("points.json"))
-
 points = []
 colors = []
 
+data = json.load(open("./pillow_down_1000.json"))
 for i, p in enumerate(data):
-    if i > 1000:
-        break
+    #if p["quality"] > 1000:
+        #continue
+    points.append((p["x"], p["y"], p["z"]))
+    colors.append(p["quality"])
+
+
+data = json.load(open("combined_floor_1000_feb20.json"))
+for i, p in enumerate(data):
+    if p["quality"] > 1000:
+        continue
+    points.append((p["x"], p["y"], p["z"]))
+    colors.append(p["quality"])
+
+data = json.load(open("./pillows_1000.json"))
+for i, p in enumerate(data):
+    if p["quality"] > 1000:
+        continue
+    points.append((p["x"], p["y"], p["z"]))
+    colors.append(p["quality"])
+
+data = json.load(open("./3k_wall.json"))
+for i, p in enumerate(data):
+    if p["quality"] > 1000:
+        continue
     points.append((p["x"], p["y"], p["z"]))
     colors.append(p["quality"])
 
